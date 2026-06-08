@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import supabase
+from datetime import datetime
 import os
 
 
@@ -218,6 +219,258 @@ def logout():
 
     return jsonify({"mensagem": "Logout realizado com sucesso."}), 200
 
+def login_obrigatorio():
+    usuario = usuario_logado()
+
+    if not usuario:
+        return None, (jsonify({
+            "erro": "É necessário estar logado para acessar esta funcionalidade."
+        }), 401)
+
+    return usuario, None
+
+
+def data_horario_futuros(data_str, horario_str):
+    try:
+        data_obj = datetime.strptime(data_str, "%Y-%m-%d").date()
+        horario_obj = datetime.strptime(horario_str[:5], "%H:%M").time()
+        data_hora_atividade = datetime.combine(data_obj, horario_obj)
+
+        return data_hora_atividade > datetime.now()
+    except ValueError:
+        return False
+
+
+@app.route("/atividades", methods=["POST"])
+def cadastrar_atividade():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json()
+
+    titulo = dados.get("titulo")
+    categoria = dados.get("categoria")
+    data_atividade = dados.get("data")
+    horario = dados.get("horario")
+    local = dados.get("local")
+    limite_vagas = dados.get("limite_vagas")
+    descricao = dados.get("descricao")
+    requisitos = dados.get("requisitos")
+
+    if not titulo or not categoria or not data_atividade or not horario or not local or not limite_vagas:
+        return jsonify({
+            "erro": "Título, categoria, data, horário, local e limite de vagas são obrigatórios."
+        }), 400
+
+    try:
+        limite_vagas = int(limite_vagas)
+    except ValueError:
+        return jsonify({"erro": "O limite de vagas deve ser um número inteiro."}), 400
+
+    if limite_vagas <= 0:
+        return jsonify({"erro": "O limite de vagas deve ser maior que zero."}), 400
+
+    if not data_horario_futuros(data_atividade, horario):
+        return jsonify({
+            "erro": "A data e o horário da atividade devem ser posteriores ao momento atual."
+        }), 400
+
+    nova_atividade = {
+        "titulo": titulo,
+        "categoria": categoria,
+        "data": data_atividade,
+        "horario": horario,
+        "local": local,
+        "limite_vagas": limite_vagas,
+        "descricao": descricao,
+        "requisitos": requisitos,
+        "status": "Aberta",
+        "organizador_id": usuario["id"]
+    }
+
+    resposta = supabase.table("atividades").insert(nova_atividade).execute()
+
+    return jsonify({
+        "mensagem": "Atividade cadastrada com sucesso.",
+        "atividade": resposta.data[0]
+    }), 201
+
+
+@app.route("/atividades", methods=["GET"])
+def listar_atividades():
+    resposta = supabase.table("atividades").select(
+        "*, usuarios!atividades_organizador_id_fkey(nome, email, apelido)"
+    ).order("data", desc=False).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/atividades/buscar", methods=["GET"])
+def buscar_atividades():
+    categoria = request.args.get("categoria")
+    data_atividade = request.args.get("data")
+    local = request.args.get("local")
+    titulo = request.args.get("titulo")
+    status = request.args.get("status")
+
+    consulta = supabase.table("atividades").select(
+        "*, usuarios!atividades_organizador_id_fkey(nome, email, apelido)"
+    )
+
+    if categoria:
+        consulta = consulta.eq("categoria", categoria)
+
+    if data_atividade:
+        consulta = consulta.eq("data", data_atividade)
+
+    if local:
+        consulta = consulta.ilike("local", f"%{local}%")
+
+    if titulo:
+        consulta = consulta.ilike("titulo", f"%{titulo}%")
+
+    if status:
+        consulta = consulta.eq("status", status)
+
+    resposta = consulta.order("data", desc=False).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/atividades/<atividade_id>", methods=["GET"])
+def consultar_atividade(atividade_id):
+    resposta = supabase.table("atividades").select(
+        "*, usuarios!atividades_organizador_id_fkey(nome, email, apelido)"
+    ).eq("id", atividade_id).execute()
+
+    if not resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    return jsonify(resposta.data[0]), 200
+
+
+@app.route("/atividades/<atividade_id>", methods=["PUT"])
+def alterar_atividade(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["organizador_id"] != usuario["id"]:
+        return jsonify({
+            "erro": "Somente o organizador responsável pode alterar esta atividade."
+        }), 403
+
+    if atividade["status"] != "Aberta":
+        return jsonify({
+            "erro": "Atividades encerradas ou canceladas não podem ser alteradas."
+        }), 400
+
+    dados = request.get_json()
+    dados_atualizados = {}
+
+    campos_permitidos = [
+        "titulo",
+        "categoria",
+        "data",
+        "horario",
+        "local",
+        "limite_vagas",
+        "descricao",
+        "requisitos"
+    ]
+
+    for campo in campos_permitidos:
+        if campo in dados:
+            dados_atualizados[campo] = dados.get(campo)
+
+    if "limite_vagas" in dados_atualizados:
+        try:
+            dados_atualizados["limite_vagas"] = int(dados_atualizados["limite_vagas"])
+        except ValueError:
+            return jsonify({"erro": "O limite de vagas deve ser um número inteiro."}), 400
+
+        if dados_atualizados["limite_vagas"] <= 0:
+            return jsonify({"erro": "O limite de vagas deve ser maior que zero."}), 400
+
+        participantes_confirmados = supabase.table("inscricoes").select("*").eq(
+            "atividade_id", atividade_id
+        ).eq("status", "Confirmado").execute()
+
+        if dados_atualizados["limite_vagas"] < len(participantes_confirmados.data):
+            return jsonify({
+                "erro": "O novo limite de vagas é menor que o número atual de participantes confirmados."
+            }), 400
+
+    data_final = dados_atualizados.get("data", atividade["data"])
+    horario_final = dados_atualizados.get("horario", atividade["horario"])
+
+    if "data" in dados_atualizados or "horario" in dados_atualizados:
+        if not data_horario_futuros(data_final, horario_final):
+            return jsonify({
+                "erro": "A data e o horário da atividade devem ser posteriores ao momento atual."
+            }), 400
+
+    if not dados_atualizados:
+        return jsonify({"erro": "Nenhum dado enviado para alteração."}), 400
+
+    resposta = supabase.table("atividades").update(dados_atualizados).eq("id", atividade_id).execute()
+
+    return jsonify({
+        "mensagem": "Atividade alterada com sucesso.",
+        "atividade": resposta.data[0]
+    }), 200
+
+
+@app.route("/atividades/<atividade_id>", methods=["DELETE"])
+def cancelar_atividade(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["organizador_id"] != usuario["id"]:
+        return jsonify({"erro": "Somente o organizador pode cancelar esta atividade."}), 403
+
+    if atividade["status"] == "Encerrada":
+        return jsonify({"erro": "Atividades encerradas não podem ser canceladas."}), 400
+
+    if atividade["status"] == "Cancelada":
+        return jsonify({"erro": "Esta atividade já está cancelada."}), 400
+
+    resposta = supabase.table("atividades").update({
+        "status": "Cancelada"
+    }).eq("id", atividade_id).execute()
+
+    inscricoes = supabase.table("inscricoes").select("*").eq("atividade_id", atividade_id).execute()
+
+    for inscricao in inscricoes.data:
+        supabase.table("notificacoes").insert({
+            "usuario_id": inscricao["usuario_id"],
+            "titulo": "Atividade cancelada",
+            "mensagem": f"A atividade '{atividade['titulo']}' foi cancelada pelo organizador."
+        }).execute()
+
+    return jsonify({
+        "mensagem": "Atividade cancelada com sucesso.",
+        "atividade": resposta.data[0]
+    }), 200
 
 if __name__ == "__main__":
     app.run(debug=True)

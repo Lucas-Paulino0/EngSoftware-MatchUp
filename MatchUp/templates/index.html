@@ -1,203 +1,263 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
-    <title>MatchUp - Gestão Completa (Release 02)</title>
+    <meta charset="UTF-8">
+    <title>MatchUp - Painel de Controle</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
-        h1 { color: #333; text-align: center; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        fieldset { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ccc; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #eee; }
-        .input-group { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
-        input, select, button { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        input, select { flex: 1; min-width: 140px; }
-        button { cursor: pointer; background-color: #0056b3; color: white; border: none; font-weight: bold; width: 100%; margin-top: 5px; }
-        button:hover { background-color: #004494; }
-        .btn-del { background-color: #dc3545; width: auto; margin: 0; padding: 5px 10px; }
-        .btn-del:hover { background-color: #c82333; }
-        .btn-acao { background-color: #28a745; width: auto; margin-top: 0; }
-        .btn-acao:hover { background-color: #218838; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        fieldset {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        input, select, button {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        input, select {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        button {
+            cursor: pointer;
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background-color: #004494;
+        }
+
+        .btn-del {
+            background-color: #dc3545;
+            width: auto;
+            margin: 0;
+            padding: 5px 10px;
+        }
+
+        .btn-del:hover {
+            background-color: #c82333;
+        }
+
+        .btn-acao {
+            background-color: #28a745;
+            width: auto;
+            margin-top: 0;
+        }
+
+        .btn-acao:hover {
+            background-color: #218838;
+        }
+
+        .sessao {
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
     </style>
 </head>
-<body onload="carregarTudo()">
+
+<body>
     <h1>MatchUp - Painel de Controle Oficial</h1>
-    
+
+    <div class="sessao">
+        <h2>Sessão</h2>
+        <div id="areaSessao">Verificando sessão...</div>
+    </div>
+
     <div class="grid">
         <fieldset>
-            <legend><b>1. Gestão de Usuários</b></legend>
+            <legend><b>1. Login</b></legend>
+
             <div class="input-group">
-                <input id="u_nome" placeholder="Nome Completo">
-                <input id="u_email" placeholder="E-mail (Login)">
-                <input id="u_senha" type="password" placeholder="Senha">
-                <input id="u_data" type="date" title="Data de Nascimento">
-                <input id="u_apelido" placeholder="Apelido">
+                <input id="loginEmail" placeholder="E-mail">
+                <input id="loginSenha" type="password" placeholder="Senha">
             </div>
+
+            <button onclick="login()">Entrar</button>
+            <button class="btn-del" onclick="logout()">Sair</button>
+        </fieldset>
+
+        <fieldset>
+            <legend><b>2. Gestão de Usuários</b></legend>
+
+            <div class="input-group">
+                <input id="nome" placeholder="Nome Completo">
+                <input id="email" placeholder="E-mail">
+                <input id="senha" type="password" placeholder="Senha">
+                <input id="data_nascimento" type="date" title="Data de Nascimento">
+                <input id="apelido" placeholder="Apelido">
+                <input id="foto_perfil" placeholder="URL da Foto de Perfil">
+            </div>
+
             <button onclick="cadastrarUsuario()">Criar Usuário</button>
             <button class="btn-acao" onclick="listarUsuarios()">Listar Todos</button>
-            
+
             <table id="tabUsuarios">
-                <thead><tr><th>Nome</th><th>E-mail</th><th>Apelido</th><th>Ações</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>E-mail</th>
+                        <th>Apelido</th>
+                    </tr>
+                </thead>
                 <tbody></tbody>
             </table>
         </fieldset>
 
         <fieldset>
-            <legend><b>2. Gestão de Atividades</b></legend>
+            <legend><b>3. Gestão de Atividades</b></legend>
+
             <div class="input-group">
-                <input id="a_titulo" placeholder="Título da Atividade">
-                <input id="a_cat" placeholder="Categoria (Ex: Futebol)">
-                <input id="a_data" type="date" title="Data da Atividade">
-                <input id="a_hora" type="time" title="Hora da Atividade">
-                <input id="a_vagas" type="number" placeholder="Limite de Vagas">
-                <input id="a_desc" placeholder="Descrição rápida">
+                <input id="tituloAtividade" placeholder="Título da Atividade">
+                <input id="categoriaAtividade" placeholder="Categoria">
+                <input id="dataAtividade" type="date" title="Data da Atividade">
+                <input id="horarioAtividade" type="time" title="Horário da Atividade">
+                <input id="localAtividade" placeholder="Local">
+                <input id="limiteVagas" type="number" placeholder="Limite de Vagas">
+                <input id="descricaoAtividade" placeholder="Descrição">
+                <input id="requisitosAtividade" placeholder="Requisitos">
             </div>
+
             <button onclick="cadastrarAtividade()">Criar Atividade</button>
             <button class="btn-acao" onclick="listarAtividades()">Listar Todas</button>
-            
+
             <table id="tabAtividades">
-                <thead><tr><th>Título</th><th>Data</th><th>Vagas</th><th>Ações</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Data</th>
+                        <th>Horário</th>
+                        <th>Local</th>
+                        <th>Vagas</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
                 <tbody></tbody>
             </table>
         </fieldset>
 
         <fieldset>
-            <legend><b>3. Gestão de Inscrições</b></legend>
+            <legend><b>4. Gestão de Inscrições</b></legend>
+
             <div class="input-group">
-                <select id="i_email"><option value="">Selecione o Usuário...</option></select>
-                <select id="i_titulo"><option value="">Selecione a Atividade...</option></select>
+                <select id="i_email">
+                    <option value="">Selecione o Usuário...</option>
+                </select>
+
+                <select id="i_titulo">
+                    <option value="">Selecione a Atividade...</option>
+                </select>
             </div>
+
             <button onclick="cadastrarInscricao()">Realizar Inscrição</button>
             <button class="btn-acao" onclick="listarInscricoes()">Listar Todas</button>
-            
+
             <table id="tabInscricoes">
-                <thead><tr><th>Participante</th><th>Atividade</th><th>Ações</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Participante</th>
+                        <th>Atividade</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
                 <tbody></tbody>
             </table>
         </fieldset>
 
         <fieldset>
-            <legend><b>4. Gestão de Avaliações</b></legend>
+            <legend><b>5. Gestão de Avaliações</b></legend>
+
             <div class="input-group">
-                <select id="av_email"><option value="">Selecione o Usuário...</option></select>
-                <select id="av_titulo"><option value="">Selecione a Atividade...</option></select>
-                <input id="av_nota" type="number" placeholder="Nota (1 a 5)" min="1" max="5">
+                <select id="av_email">
+                    <option value="">Selecione o Avaliador...</option>
+                </select>
+
+                <select id="av_avaliado">
+                    <option value="">Selecione o Avaliado...</option>
+                </select>
+
+                <select id="av_titulo">
+                    <option value="">Selecione a Atividade...</option>
+                </select>
+
+                <input id="av_nota" type="number" placeholder="Nota (0 a 10)" min="0" max="10">
                 <input id="av_comentario" placeholder="Comentário da experiência">
             </div>
+
             <button onclick="cadastrarAvaliacao()">Registrar Avaliação</button>
             <button class="btn-acao" onclick="listarAvaliacao()">Listar Todas</button>
-            
+
             <table id="tabAvaliacoes">
-                <thead><tr><th>Participante</th><th>Atividade</th><th>Nota</th><th>Ações</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Avaliador</th>
+                        <th>Avaliado</th>
+                        <th>Atividade</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
                 <tbody></tbody>
             </table>
         </fieldset>
     </div>
 
-    <script>
-        const API = 'http://127.0.0.1:5000';
-
-        // Função para carregar tudo ao abrir a tela
-        function carregarTudo() {
-            listarUsuarios();
-            listarAtividades();
-            listarInscricoes();
-            listarAvaliacao();
-        }
-
-        // Função que alimenta os <select> com os dados cadastrados
-        function atualizarDropdowns(usuarios, atividades) {
-            if (usuarios) {
-                let optsUser = '<option value="">Selecione o Usuário...</option>';
-                usuarios.forEach(u => optsUser += `<option value="${u.email}">${u.nome} (${u.email})</option>`);
-                document.getElementById('i_email').innerHTML = optsUser;
-                document.getElementById('av_email').innerHTML = optsUser;
-            }
-            if (atividades) {
-                let optsAtiv = '<option value="">Selecione a Atividade...</option>';
-                atividades.forEach(a => optsAtiv += `<option value="${a.titulo}">${a.titulo}</option>`);
-                document.getElementById('i_titulo').innerHTML = optsAtiv;
-                document.getElementById('av_titulo').innerHTML = optsAtiv;
-            }
-        }
-
-        function tratarResposta(res, callbackListar) {
-            res.json().then(d => { alert(d.mensagem || d.erro); if(res.ok) callbackListar(); });
-        }
-
-        // --- 1. USUÁRIOS ---
-        function listarUsuarios() {
-            fetch(API + '/usuarios').then(r=>r.json()).then(data => {
-                let tb = document.querySelector("#tabUsuarios tbody"); tb.innerHTML = "";
-                data.forEach(u => tb.innerHTML += `<tr><td>${u.nome}</td><td>${u.email}</td><td>${u.apelido || '-'}</td><td><button class="btn-del" onclick="deletarUsuario('${u.email}')">Excluir</button></td></tr>`);
-                atualizarDropdowns(data, null); // Atualiza os menus de seleção
-            });
-        }
-        function cadastrarUsuario() {
-            let u = { 
-                nome: document.getElementById('u_nome').value, email: document.getElementById('u_email').value,
-                senha: document.getElementById('u_senha').value, data_nascimento: document.getElementById('u_data').value,
-                apelido: document.getElementById('u_apelido').value
-            };
-            fetch(API + '/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(u) }).then(r => tratarResposta(r, listarUsuarios));
-        }
-        function deletarUsuario(email) { fetch(`${API}/usuarios/${email}`, {method:'DELETE'}).then(()=>listarUsuarios()); }
-
-        // --- 2. ATIVIDADES ---
-        function listarAtividades() {
-            fetch(API + '/atividades').then(r=>r.json()).then(data => {
-                let tb = document.querySelector("#tabAtividades tbody"); tb.innerHTML = "";
-                data.forEach(a => tb.innerHTML += `<tr><td>${a.titulo}</td><td>${a.data}</td><td>${a.vagas}</td><td><button class="btn-del" onclick="deletarAtividade('${a.titulo}')">Excluir</button></td></tr>`);
-                atualizarDropdowns(null, data); // Atualiza os menus de seleção
-            });
-        }
-        function cadastrarAtividade() {
-            let a = { 
-                titulo: document.getElementById('a_titulo').value, categoria: document.getElementById('a_cat').value,
-                data: document.getElementById('a_data').value, hora: document.getElementById('a_hora').value,
-                vagas: parseInt(document.getElementById('a_vagas').value), descricao: document.getElementById('a_desc').value
-            };
-            fetch(API + '/atividades', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(a) }).then(r => tratarResposta(r, listarAtividades));
-        }
-        function deletarAtividade(titulo) { fetch(`${API}/atividades/${titulo}`, {method:'DELETE'}).then(()=>listarAtividades()); }
-
-        // --- 3. INSCRIÇÕES ---
-        function listarInscricoes() {
-            fetch(API + '/inscricoes').then(r=>r.json()).then(data => {
-                let tb = document.querySelector("#tabInscricoes tbody"); tb.innerHTML = "";
-                data.forEach(i => tb.innerHTML += `<tr><td>${i.email}</td><td>${i.titulo_atividade}</td><td><button class="btn-del" onclick="deletarInscricao('${i.email}','${i.titulo_atividade}')">Cancelar</button></td></tr>`);
-            });
-        }
-        function cadastrarInscricao() {
-            let email_sel = document.getElementById('i_email').value;
-            let titulo_sel = document.getElementById('i_titulo').value;
-            if(!email_sel || !titulo_sel) { alert("Selecione um usuário e uma atividade!"); return; }
-            
-            let i = { email: email_sel, titulo_atividade: titulo_sel };
-            fetch(API + '/inscricoes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(i) }).then(r => tratarResposta(r, listarInscricoes));
-        }
-        function deletarInscricao(email, titulo) { fetch(`${API}/inscricoes/${email}/${titulo}`, {method:'DELETE'}).then(()=>listarInscricoes()); }
-
-        // --- 4. AVALIAÇÕES ---
-        function listarAvaliacao() {
-            fetch(API + '/avaliacoes').then(r=>r.json()).then(data => {
-                let tb = document.querySelector("#tabAvaliacoes tbody"); tb.innerHTML = "";
-                data.forEach(a => tb.innerHTML += `<tr><td>${a.email}</td><td>${a.titulo_atividade}</td><td>⭐ ${a.nota}</td><td><button class="btn-del" onclick="deletarAvaliacao('${a.email}','${a.titulo_atividade}')">Excluir</button></td></tr>`);
-            });
-        }
-        function cadastrarAvaliacao() {
-            let email_sel = document.getElementById('av_email').value;
-            let titulo_sel = document.getElementById('av_titulo').value;
-            if(!email_sel || !titulo_sel) { alert("Selecione um usuário e uma atividade!"); return; }
-
-            let a = { 
-                email: email_sel, titulo_atividade: titulo_sel, 
-                nota: parseInt(document.getElementById('av_nota').value), comentario: document.getElementById('av_comentario').value 
-            };
-            fetch(API + '/avaliacoes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(a) }).then(r => tratarResposta(r, listarAvaliacao));
-        }
-        function deletarAvaliacao(email, titulo) { fetch(`${API}/avaliacoes/${email}/${titulo}`, {method:'DELETE'}).then(()=>listarAvaliacao()); }
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
