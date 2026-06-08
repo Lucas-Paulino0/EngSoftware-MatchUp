@@ -4,7 +4,6 @@ import time
 URL = 'http://127.0.0.1:5000'
 
 def pausa_dramatica():
-    # Pausa de 3 segundos para dar tempo do professor ler a tela
     time.sleep(3)
 
 print("\n" + "="*60)

@@ -12,7 +12,6 @@ avaliacoes = []
 
 @app.route('/')
 def index():
-    # O HTML será carregado separadamente para não poluir o código Python
     return "<h1>Servidor MatchUp Rodando! Abra o arquivo index.html no navegador.</h1>"
 
 # ==========================================
