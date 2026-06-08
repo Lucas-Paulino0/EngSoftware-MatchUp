@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import supabase
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 
 
@@ -682,6 +682,251 @@ def cancelar_inscricao(inscricao_id):
     return jsonify({
         "mensagem": "Inscrição cancelada com sucesso.",
         "promovido_da_lista_espera": promovido
+    }), 200
+    
+def usuario_participou_atividade(usuario_id, atividade_id):
+    resposta = supabase.table("inscricoes").select("*").eq(
+        "usuario_id", usuario_id
+    ).eq("atividade_id", atividade_id).eq(
+        "status", "Confirmado"
+    ).execute()
+
+    return len(resposta.data) > 0
+
+
+def avaliacao_dentro_do_prazo(avaliacao):
+    criado_em = avaliacao.get("criado_em")
+
+    if not criado_em:
+        return False
+
+    try:
+        criado_em = criado_em.replace("Z", "+00:00")
+        data_criacao = datetime.fromisoformat(criado_em)
+
+        if data_criacao.tzinfo is None:
+            data_criacao = data_criacao.replace(tzinfo=timezone.utc)
+
+        agora = datetime.now(timezone.utc)
+
+        return agora <= data_criacao + timedelta(days=7)
+    except ValueError:
+        return False
+
+
+@app.route("/avaliacoes", methods=["POST"])
+def cadastrar_avaliacao():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json()
+
+    avaliado_id = dados.get("avaliado_id")
+    atividade_id = dados.get("atividade_id")
+    nota = dados.get("nota")
+    comentario = dados.get("comentario")
+
+    if not avaliado_id or not atividade_id or nota is None:
+        return jsonify({"erro": "Avaliado, atividade e nota são obrigatórios."}), 400
+
+    try:
+        nota = int(nota)
+    except ValueError:
+        return jsonify({"erro": "A nota deve ser um número inteiro."}), 400
+
+    if nota < 0 or nota > 10:
+        return jsonify({"erro": "A nota deve estar entre 0 e 10."}), 400
+
+    if avaliado_id == usuario["id"]:
+        return jsonify({"erro": "Você não pode avaliar a si próprio."}), 400
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["status"] != "Encerrada":
+        return jsonify({"erro": "Avaliações só podem ser feitas após o encerramento da atividade."}), 400
+
+    if not usuario_participou_atividade(usuario["id"], atividade_id):
+        return jsonify({"erro": "Você só pode avaliar atividades em que participou."}), 400
+
+    if not usuario_participou_atividade(avaliado_id, atividade_id):
+        return jsonify({"erro": "O avaliado precisa ser participante confirmado da mesma atividade."}), 400
+
+    avaliacao_existente = supabase.table("avaliacoes").select("*").eq(
+        "avaliador_id", usuario["id"]
+    ).eq("avaliado_id", avaliado_id).eq(
+        "atividade_id", atividade_id
+    ).execute()
+
+    if avaliacao_existente.data:
+        return jsonify({"erro": "Você já avaliou este participante nesta atividade."}), 400
+
+    nova_avaliacao = {
+        "avaliador_id": usuario["id"],
+        "avaliado_id": avaliado_id,
+        "atividade_id": atividade_id,
+        "nota": nota,
+        "comentario": comentario
+    }
+
+    resposta = supabase.table("avaliacoes").insert(nova_avaliacao).execute()
+
+    supabase.table("notificacoes").insert({
+        "usuario_id": avaliado_id,
+        "titulo": "Nova avaliação recebida",
+        "mensagem": f"Você recebeu uma nova avaliação na atividade '{atividade['titulo']}'."
+    }).execute()
+
+    return jsonify({
+        "mensagem": "Avaliação cadastrada com sucesso.",
+        "avaliacao": resposta.data[0]
+    }), 201
+
+
+@app.route("/avaliacoes", methods=["GET"])
+def listar_avaliacoes():
+    resposta = supabase.table("avaliacoes").select(
+        "*, avaliador:usuarios!avaliacoes_avaliador_id_fkey(nome, email, apelido), avaliado:usuarios!avaliacoes_avaliado_id_fkey(nome, email, apelido), atividades!avaliacoes_atividade_id_fkey(titulo, data, horario)"
+    ).order("criado_em", desc=True).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/minhas-avaliacoes", methods=["GET"])
+def minhas_avaliacoes():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("avaliacoes").select(
+        "*, avaliador:usuarios!avaliacoes_avaliador_id_fkey(nome, email, apelido), atividades!avaliacoes_atividade_id_fkey(titulo, data, horario)"
+    ).eq("avaliado_id", usuario["id"]).order("criado_em", desc=True).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/avaliacoes/<avaliacao_id>", methods=["PUT"])
+def alterar_avaliacao(avaliacao_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    avaliacao_resposta = supabase.table("avaliacoes").select("*").eq("id", avaliacao_id).execute()
+
+    if not avaliacao_resposta.data:
+        return jsonify({"erro": "Avaliação não encontrada."}), 404
+
+    avaliacao = avaliacao_resposta.data[0]
+
+    if avaliacao["avaliador_id"] != usuario["id"]:
+        return jsonify({"erro": "Somente o autor da avaliação pode alterá-la."}), 403
+
+    if not avaliacao_dentro_do_prazo(avaliacao):
+        return jsonify({"erro": "Avaliações só podem ser alteradas dentro do prazo de 7 dias."}), 400
+
+    dados = request.get_json()
+    dados_atualizados = {}
+
+    if "nota" in dados:
+        try:
+            nota = int(dados.get("nota"))
+        except ValueError:
+            return jsonify({"erro": "A nota deve ser um número inteiro."}), 400
+
+        if nota < 0 or nota > 10:
+            return jsonify({"erro": "A nota deve estar entre 0 e 10."}), 400
+
+        dados_atualizados["nota"] = nota
+
+    if "comentario" in dados:
+        dados_atualizados["comentario"] = dados.get("comentario")
+
+    if not dados_atualizados:
+        return jsonify({"erro": "Nenhum dado enviado para alteração."}), 400
+
+    dados_atualizados["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+
+    resposta = supabase.table("avaliacoes").update(dados_atualizados).eq("id", avaliacao_id).execute()
+
+    return jsonify({
+        "mensagem": "Avaliação alterada com sucesso.",
+        "avaliacao": resposta.data[0]
+    }), 200
+
+
+@app.route("/avaliacoes/<avaliacao_id>", methods=["DELETE"])
+def excluir_avaliacao(avaliacao_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    avaliacao_resposta = supabase.table("avaliacoes").select("*").eq("id", avaliacao_id).execute()
+
+    if not avaliacao_resposta.data:
+        return jsonify({"erro": "Avaliação não encontrada."}), 404
+
+    avaliacao = avaliacao_resposta.data[0]
+
+    if avaliacao["avaliador_id"] != usuario["id"]:
+        return jsonify({"erro": "Somente o autor da avaliação pode excluí-la."}), 403
+
+    if not avaliacao_dentro_do_prazo(avaliacao):
+        return jsonify({"erro": "Avaliações só podem ser excluídas dentro do prazo de 7 dias."}), 400
+
+    supabase.table("avaliacoes").delete().eq("id", avaliacao_id).execute()
+
+    return jsonify({"mensagem": "Avaliação excluída com sucesso."}), 200
+
+@app.route("/atividades/<atividade_id>/encerrar", methods=["PUT"])
+def encerrar_atividade(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["organizador_id"] != usuario["id"]:
+        return jsonify({"erro": "Somente o organizador pode encerrar esta atividade."}), 403
+
+    if atividade["status"] == "Cancelada":
+        return jsonify({"erro": "Atividades canceladas não podem ser encerradas."}), 400
+
+    if atividade["status"] == "Encerrada":
+        return jsonify({"erro": "Esta atividade já está encerrada."}), 400
+
+    resposta = supabase.table("atividades").update({
+        "status": "Encerrada"
+    }).eq("id", atividade_id).execute()
+
+    inscricoes = supabase.table("inscricoes").select("*").eq(
+        "atividade_id", atividade_id
+    ).eq("status", "Confirmado").execute()
+
+    for inscricao in inscricoes.data:
+        supabase.table("notificacoes").insert({
+            "usuario_id": inscricao["usuario_id"],
+            "titulo": "Atividade encerrada",
+            "mensagem": f"A atividade '{atividade['titulo']}' foi encerrada. As avaliações estão liberadas."
+        }).execute()
+
+    return jsonify({
+        "mensagem": "Atividade encerrada com sucesso.",
+        "atividade": resposta.data[0]
     }), 200
 
 if __name__ == "__main__":

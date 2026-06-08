@@ -2,259 +2,373 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>MatchUp - Painel de Controle</title>
-
+    <title>MatchUp</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f4f9;
-        }
-
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        fieldset {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 13px;
-        }
-
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #eee;
-        }
-
-        .input-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-
-        input, select, button {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        input, select {
-            flex: 1;
-            min-width: 140px;
-        }
-
-        button {
-            cursor: pointer;
-            background-color: #0056b3;
-            color: white;
-            border: none;
-            font-weight: bold;
-            width: 100%;
-            margin-top: 5px;
-        }
-
-        button:hover {
-            background-color: #004494;
-        }
-
-        .btn-del {
-            background-color: #dc3545;
-            width: auto;
-            margin: 0;
-            padding: 5px 10px;
-        }
-
-        .btn-del:hover {
-            background-color: #c82333;
-        }
-
-        .btn-acao {
-            background-color: #28a745;
-            width: auto;
-            margin-top: 0;
-        }
-
-        .btn-acao:hover {
-            background-color: #218838;
-        }
-
-        .sessao {
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-    </style>
 </head>
 
 <body>
-    <h1>MatchUp - Painel de Controle Oficial</h1>
+    <div class="app-shell">
 
-    <div class="sessao">
-        <h2>Sessão</h2>
-        <div id="areaSessao">Verificando sessão...</div>
-    </div>
-
-    <div class="grid">
-        <fieldset>
-            <legend><b>1. Login</b></legend>
-
-            <div class="input-group">
-                <input id="loginEmail" placeholder="E-mail">
-                <input id="loginSenha" type="password" placeholder="Senha">
+        <!-- SIDEBAR ESQUERDA -->
+        <aside class="left-sidebar">
+            <div class="brand">
+                <div class="brand-icon">M</div>
+                <div>
+                    <h1>MatchUp</h1>
+                    <span>Encontre sua próxima atividade</span>
+                </div>
             </div>
 
-            <button onclick="login()">Entrar</button>
-            <button class="btn-del" onclick="logout()">Sair</button>
-        </fieldset>
+            <nav class="nav-menu">
+                <a href="#feed" class="active">🏠 Início</a>
+                <a href="#criar-atividade">➕ Criar atividade</a>
+                <a href="#inscricoes">🎟️ Minhas inscrições</a>
+                <a href="#usuarios">👥 Pessoas</a>
+                <a href="#avaliacoes">⭐ Avaliações</a>
+            </nav>
 
-        <fieldset>
-            <legend><b>2. Gestão de Usuários</b></legend>
+            <div class="mini-card">
+                <h3>Dica</h3>
+                <p>Crie atividades com data futura e convide participantes para formar grupos.</p>
+            </div>
+        </aside>
 
-            <div class="input-group">
-                <input id="nome" placeholder="Nome Completo">
-                <input id="email" placeholder="E-mail">
-                <input id="senha" type="password" placeholder="Senha">
-                <input id="data_nascimento" type="date" title="Data de Nascimento">
-                <input id="apelido" placeholder="Apelido">
-                <input id="foto_perfil" placeholder="URL da Foto de Perfil">
+        <!-- CONTEÚDO CENTRAL -->
+        <main class="main-feed">
+
+            <!-- TOPO -->
+            <header class="topbar">
+                <div class="search-box">
+                    <span>🔎</span>
+                    <input id="campoBusca" placeholder="Buscar atividades por título, local ou categoria..." oninput="filtrarFeed()">
+                </div>
+
+                <div class="session-pill">
+                    <span id="areaSessao">Verificando sessão...</span>
+                </div>
+            </header>
+
+            <!-- LOGIN / CADASTRO -->
+            <section id="authCard" class="composer-card">
+                <div class="composer-header">
+                    <div class="avatar">👤</div>
+                    <div>
+                        <h2>Entrar no MatchUp</h2>
+                        <p>Faça login para criar atividades, participar e avaliar outros usuários.</p>
+                    </div>
+                </div>
+
+                <div class="auth-grid">
+                    <div class="auth-box">
+                        <h3>Login</h3>
+
+                        <label>E-mail</label>
+                        <input id="loginEmail" placeholder="Digite seu e-mail">
+
+                        <label>Senha</label>
+                        <input id="loginSenha" type="password" placeholder="Digite sua senha">
+
+                        <div class="button-row">
+                            <button class="btn-primary" onclick="login()">Entrar</button>
+                            <button class="btn-danger" onclick="logout()">Sair</button>
+                        </div>
+                    </div>
+
+                    <div class="auth-box">
+                        <h3>Criar conta</h3>
+
+                        <div class="form-grid two">
+                            <div>
+                                <label>Nome completo</label>
+                                <input id="nome" placeholder="Ex: João Silva">
+                            </div>
+
+                            <div>
+                                <label>E-mail</label>
+                                <input id="email" placeholder="Ex: joao@email.com">
+                            </div>
+
+                            <div>
+                                <label>Senha</label>
+                                <input id="senha" type="password" placeholder="Mínimo 8 caracteres">
+                            </div>
+
+                            <div>
+                                <label>Data de nascimento</label>
+                                <input id="data_nascimento" type="date">
+                            </div>
+
+                            <div>
+                                <label>Apelido</label>
+                                <input id="apelido" placeholder="Nome público">
+                            </div>
+
+                            <div>
+                                <label>Foto de perfil</label>
+                                <input id="foto_perfil" placeholder="URL da imagem">
+                            </div>
+                        </div>
+
+                        <button class="btn-primary full" onclick="cadastrarUsuario()">Criar usuário</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="welcomeCard" class="welcome-card hidden">
+                <div class="welcome-content">
+                    <div class="welcome-avatar">🎯</div>
+
+                    <div>
+                        <h2 id="welcomeTitle">Bem-vindo ao MatchUp!</h2>
+                        <p>
+                            Explore atividades, participe de eventos e acompanhe a comunidade pelo feed.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="welcome-actions">
+                    <a href="#criar-atividade" class="welcome-button primary-link">Criar atividade</a>
+                    <a href="#feed" class="welcome-button secondary-link">Ver feed</a>
+                </div>
+            </section>
+
+            <!-- CRIAR ATIVIDADE -->
+            <section id="criar-atividade" class="composer-card">
+                <div class="composer-header">
+                    <div class="avatar activity-avatar">＋</div>
+                    <div>
+                        <h2>Publicar nova atividade</h2>
+                        <p>Crie uma atividade como se fosse uma publicação no feed.</p>
+                    </div>
+                </div>
+
+                <div class="form-grid four">
+                    <div>
+                        <label>Título</label>
+                        <input id="tituloAtividade" placeholder="Ex: Futebol de sábado">
+                    </div>
+
+                    <div>
+                        <label>Categoria</label>
+                        <input id="categoriaAtividade" placeholder="Ex: Futebol">
+                    </div>
+
+                    <div>
+                        <label>Data</label>
+                        <input id="dataAtividade" type="date">
+                    </div>
+
+                    <div>
+                        <label>Horário</label>
+                        <input id="horarioAtividade" type="time">
+                    </div>
+
+                    <div>
+                        <label>Local</label>
+                        <input id="localAtividade" placeholder="Ex: Quadra central">
+                    </div>
+
+                    <div>
+                        <label>Limite de vagas</label>
+                        <input id="limiteVagas" type="number" placeholder="Ex: 10">
+                    </div>
+
+                    <div class="wide">
+                        <label>Descrição</label>
+                        <input id="descricaoAtividade" placeholder="Conte um pouco sobre a atividade...">
+                    </div>
+
+                    <div class="wide">
+                        <label>Requisitos</label>
+                        <input id="requisitosAtividade" placeholder="Ex: levar água, chegar 10 min antes...">
+                    </div>
+                </div>
+
+                <button class="btn-primary full" onclick="cadastrarAtividade()">Publicar atividade</button>
+            </section>
+
+            <!-- FEED -->
+            <section id="feed" class="feed-section">
+                <div class="section-title">
+                    <div>
+                        <h2>Feed de atividades</h2>
+                        <p>Atividades disponíveis e eventos publicados pela comunidade.</p>
+                    </div>
+
+                    <button class="btn-secondary" onclick="listarAtividades()">Atualizar feed</button>
+                </div>
+
+                <div id="feedAtividades" class="feed-list">
+                    <div class="empty-state">
+                        Carregando atividades...
+                    </div>
+                </div>
+            </section>
+
+            <!-- INSCRIÇÕES -->
+            <section id="inscricoes" class="content-card">
+                <div class="section-title">
+                    <div>
+                        <h2>Inscrições</h2>
+                        <p>Gerencie inscrições e lista de espera.</p>
+                    </div>
+
+                    <button class="btn-secondary" onclick="listarInscricoes()">Atualizar</button>
+                </div>
+
+                <div class="join-box">
+                    <p>A inscrição será feita usando o usuário atualmente logado.</p>
+
+                    <select id="i_titulo">
+                        <option value="">Selecione a atividade...</option>
+                    </select>
+
+                    <button class="btn-primary" onclick="cadastrarInscricao()">Participar</button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="tabInscricoes">
+                        <thead>
+                            <tr>
+                                <th>Participante</th>
+                                <th>Atividade</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- AVALIAÇÕES -->
+            <section id="avaliacoes" class="content-card">
+                <div class="section-title">
+                    <div>
+                        <h2>Avaliações</h2>
+                        <p>Avalie outros participantes após uma atividade encerrada.</p>
+                    </div>
+
+                    <button class="btn-secondary" onclick="listarAvaliacao()">Atualizar</button>
+                </div>
+
+                <div class="form-grid four">
+                    <div>
+                        <label>Avaliador</label>
+                        <select id="av_email">
+                            <option value="">Usuário logado será usado</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Avaliado</label>
+                        <select id="av_avaliado">
+                            <option value="">Selecione o avaliado...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Atividade</label>
+                        <select id="av_titulo">
+                            <option value="">Selecione a atividade...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Nota</label>
+                        <input id="av_nota" type="number" min="0" max="10" placeholder="0 a 10">
+                    </div>
+
+                    <div class="wide">
+                        <label>Comentário</label>
+                        <input id="av_comentario" placeholder="Como foi a experiência?">
+                    </div>
+                </div>
+
+                <button class="btn-primary full" onclick="cadastrarAvaliacao()">Registrar avaliação</button>
+
+                <div class="table-wrapper">
+                    <table id="tabAvaliacoes">
+                        <thead>
+                            <tr>
+                                <th>Avaliador</th>
+                                <th>Avaliado</th>
+                                <th>Atividade</th>
+                                <th>Nota</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- USUÁRIOS -->
+            <section id="usuarios" class="content-card">
+                <div class="section-title">
+                    <div>
+                        <h2>Pessoas</h2>
+                        <p>Usuários cadastrados na comunidade MatchUp.</p>
+                    </div>
+
+                    <button class="btn-secondary" onclick="listarUsuarios()">Atualizar</button>
+                </div>
+
+                <div id="cardsUsuarios" class="people-grid"></div>
+
+                <div class="table-wrapper hidden-table">
+                    <table id="tabUsuarios">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>E-mail</th>
+                                <th>Apelido</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- SIDEBAR DIREITA -->
+        <aside class="right-sidebar">
+            <div class="profile-card">
+                <div class="profile-cover"></div>
+                <div class="profile-avatar">🏃</div>
+                <h3>Comunidade MatchUp</h3>
+                <p>Organize partidas, encontros, jogos e atividades com outras pessoas.</p>
             </div>
 
-            <button onclick="cadastrarUsuario()">Criar Usuário</button>
-            <button class="btn-acao" onclick="listarUsuarios()">Listar Todos</button>
+            <div class="side-card">
+                <h3>Resumo</h3>
 
-            <table id="tabUsuarios">
-                <thead>
-                    <tr>
-                        <th>Nome</th>
-                        <th>E-mail</th>
-                        <th>Apelido</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </fieldset>
+                <div class="stat-row">
+                    <span>Atividades</span>
+                    <strong id="statAtividades">0</strong>
+                </div>
 
-        <fieldset>
-            <legend><b>3. Gestão de Atividades</b></legend>
+                <div class="stat-row">
+                    <span>Usuários</span>
+                    <strong id="statUsuarios">0</strong>
+                </div>
 
-            <div class="input-group">
-                <input id="tituloAtividade" placeholder="Título da Atividade">
-                <input id="categoriaAtividade" placeholder="Categoria">
-                <input id="dataAtividade" type="date" title="Data da Atividade">
-                <input id="horarioAtividade" type="time" title="Horário da Atividade">
-                <input id="localAtividade" placeholder="Local">
-                <input id="limiteVagas" type="number" placeholder="Limite de Vagas">
-                <input id="descricaoAtividade" placeholder="Descrição">
-                <input id="requisitosAtividade" placeholder="Requisitos">
+                <div class="stat-row">
+                    <span>Inscrições</span>
+                    <strong id="statInscricoes">0</strong>
+                </div>
             </div>
 
-            <button onclick="cadastrarAtividade()">Criar Atividade</button>
-            <button class="btn-acao" onclick="listarAtividades()">Listar Todas</button>
-
-            <table id="tabAtividades">
-                <thead>
-                    <tr>
-                        <th>Título</th>
-                        <th>Data</th>
-                        <th>Horário</th>
-                        <th>Local</th>
-                        <th>Vagas</th>
-                        <th>Status</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </fieldset>
-
-        <fieldset>
-            <legend><b>4. Gestão de Inscrições</b></legend>
-
-            <div class="input-group">
-                <p>A inscrição será feita usando o usuário atualmente logado.</p>
-
-                <select id="i_titulo">
-                    <option value="">Selecione a Atividade...</option>
-                </select>
+            <div class="side-card">
+                <h3>Categorias populares</h3>
+                <div id="categoriasPopulares" class="tag-list">
+                    <span>Futebol</span>
+                    <span>Vôlei</span>
+                    <span>Corrida</span>
+                    <span>Jogos</span>
+                </div>
             </div>
-
-            <button onclick="cadastrarInscricao()">Realizar Inscrição</button>
-            <button class="btn-acao" onclick="listarInscricoes()">Listar Todas</button>
-
-            <table id="tabInscricoes">
-                <thead>
-                    <tr>
-                        <th>Participante</th>
-                        <th>Atividade</th>
-                        <th>Status</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </fieldset>
-
-        <fieldset>
-            <legend><b>5. Gestão de Avaliações</b></legend>
-
-            <div class="input-group">
-                <select id="av_email">
-                    <option value="">Selecione o Avaliador...</option>
-                </select>
-
-                <select id="av_avaliado">
-                    <option value="">Selecione o Avaliado...</option>
-                </select>
-
-                <select id="av_titulo">
-                    <option value="">Selecione a Atividade...</option>
-                </select>
-
-                <input id="av_nota" type="number" placeholder="Nota (0 a 10)" min="0" max="10">
-                <input id="av_comentario" placeholder="Comentário da experiência">
-            </div>
-
-            <button onclick="cadastrarAvaliacao()">Registrar Avaliação</button>
-            <button class="btn-acao" onclick="listarAvaliacao()">Listar Todas</button>
-
-            <table id="tabAvaliacoes">
-                <thead>
-                    <tr>
-                        <th>Avaliador</th>
-                        <th>Avaliado</th>
-                        <th>Atividade</th>
-                        <th>Nota</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </fieldset>
+        </aside>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
