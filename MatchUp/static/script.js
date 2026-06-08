@@ -1,53 +1,61 @@
 const API_URL = "";
+let atividadesCache = [];
+let inscricoesCache = [];
+let usuarioLogadoCache = null;
 
 async function verificarSessao() {
-  const resposta = await fetch(`${API_URL}/sessao`, {
-    method: "GET",
-    credentials: "include",
-  });
+  try {
+    const resposta = await fetch(`${API_URL}/sessao`, {
+      method: "GET",
+      credentials: "include",
+    });
 
-  const dados = await resposta.json();
+    const dados = await resposta.json();
 
-  const areaSessao = document.getElementById("areaSessao");
-  const authCard = document.getElementById("authCard");
-  const welcomeCard = document.getElementById("welcomeCard");
-  const welcomeTitle = document.getElementById("welcomeTitle");
+    usuarioLogadoCache = dados.logado ? dados.usuario : null;
 
-  if (dados.logado) {
-    areaSessao.innerHTML = `
-            <div class="logged-user-mini">
-                <div class="logged-avatar">${pegarInicial(dados.usuario.nome)}</div>
-                <div>
-                    <strong>${dados.usuario.nome}</strong>
-                    <span>${dados.usuario.email}</span>
+    const areaSessao = document.getElementById("areaSessao");
+    const authCard = document.getElementById("authCard");
+    const welcomeCard = document.getElementById("welcomeCard");
+    const welcomeTitle = document.getElementById("welcomeTitle");
+
+    if (!areaSessao) {
+      console.error("Elemento areaSessao não encontrado no HTML.");
+      return dados;
+    }
+
+    if (dados.logado) {
+      areaSessao.innerHTML = `
+                <div class="logged-user-mini">
+                    <div class="logged-avatar">${pegarInicial(dados.usuario.nome)}</div>
+                    <div>
+                        <strong>${dados.usuario.nome}</strong>
+                        <span>${dados.usuario.email}</span>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
 
-    if (authCard) {
-      authCard.classList.add("hidden");
+      if (authCard) authCard.classList.add("hidden");
+      if (welcomeCard) welcomeCard.classList.remove("hidden");
+      if (welcomeTitle)
+        welcomeTitle.textContent = `Bem-vindo, ${dados.usuario.nome}!`;
+    } else {
+      areaSessao.innerHTML = `<p>Você não está logado.</p>`;
+
+      if (authCard) authCard.classList.remove("hidden");
+      if (welcomeCard) welcomeCard.classList.add("hidden");
     }
 
-    if (welcomeCard) {
-      welcomeCard.classList.remove("hidden");
-    }
+    return dados;
+  } catch (erro) {
+    console.error("Erro ao verificar sessão:", erro);
 
-    if (welcomeTitle) {
-      welcomeTitle.textContent = `Bem-vindo, ${dados.usuario.nome}!`;
-    }
-  } else {
-    areaSessao.innerHTML = `<p>Você não está logado.</p>`;
+    const areaSessao = document.getElementById("areaSessao");
 
-    if (authCard) {
-      authCard.classList.remove("hidden");
-    }
-
-    if (welcomeCard) {
-      welcomeCard.classList.add("hidden");
+    if (areaSessao) {
+      areaSessao.innerHTML = `<p>Erro ao verificar sessão.</p>`;
     }
   }
-
-  return dados;
 }
 
 async function cadastrarUsuario() {
@@ -242,25 +250,25 @@ async function cadastrarAtividade() {
   listarAtividades();
 }
 
-let atividadesCache = [];
-
 async function listarAtividades() {
-    const resposta = await fetch(`${API_URL}/atividades`, {
-        method: "GET",
-        credentials: "include"
-    });
+  const resposta = await fetch(`${API_URL}/atividades`, {
+    method: "GET",
+    credentials: "include",
+  });
 
-    const atividades = await resposta.json();
+  const atividades = await resposta.json();
 
-    atividadesCache = atividades;
+  atividadesCache = atividades;
 
-    renderizarFeedAtividades(atividades);
-    atualizarDropdownsAtividades(atividades);
+  await listarInscricoes(false);
 
-    const statAtividades = document.getElementById("statAtividades");
-    if (statAtividades) {
-        statAtividades.textContent = atividades.length;
-    }
+  renderizarFeedAtividades(atividades);
+  atualizarDropdownsAtividades(atividades);
+
+  const statAtividades = document.getElementById("statAtividades");
+  if (statAtividades) {
+    statAtividades.textContent = atividades.length;
+  }
 }
 
 atualizarDropdownsAtividades(atividades);
@@ -298,6 +306,66 @@ function renderizarFeedAtividades(atividades) {
 
     const statusClass = `status-${atividade.status}`;
 
+    const inscricoesDaAtividade = inscricoesCache.filter((i) => {
+      return i.atividade_id === atividade.id;
+    });
+
+    const confirmados = inscricoesDaAtividade.filter(
+      (i) => i.status === "Confirmado",
+    ).length;
+    const listaEspera = inscricoesDaAtividade.filter(
+      (i) => i.status === "Lista de Espera",
+    ).length;
+
+    const minhaInscricao = usuarioLogadoCache
+      ? inscricoesDaAtividade.find(
+          (i) => i.usuario_id === usuarioLogadoCache.id,
+        )
+      : null;
+
+    const souOrganizador =
+      usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
+
+    let textoBotaoParticipar = "Participar";
+    let classeBotaoParticipar = "btn-primary";
+    let disabledParticipar = "";
+
+    if (!usuarioLogadoCache) {
+      textoBotaoParticipar = "Faça login para participar";
+      classeBotaoParticipar = "btn-disabled";
+      disabledParticipar = "disabled";
+    } else if (souOrganizador) {
+      textoBotaoParticipar = "Você é o organizador";
+      classeBotaoParticipar = "btn-disabled";
+      disabledParticipar = "disabled";
+    } else if (minhaInscricao) {
+      textoBotaoParticipar =
+        minhaInscricao.status === "Confirmado"
+          ? "Inscrito"
+          : `Na lista de espera #${minhaInscricao.posicao_espera}`;
+
+      classeBotaoParticipar = "btn-disabled";
+      disabledParticipar = "disabled";
+    } else if (atividade.status !== "Aberta") {
+      textoBotaoParticipar = "Indisponível";
+      classeBotaoParticipar = "btn-disabled";
+      disabledParticipar = "disabled";
+    }
+
+    let botoesOrganizador = "";
+
+    if (souOrganizador && atividade.status === "Aberta") {
+      botoesOrganizador = `
+                <button class="btn-acao" onclick="encerrarAtividade('${atividade.id}')">
+                    Encerrar
+                </button>
+
+                <button class="btn-del" onclick="cancelarAtividade('${atividade.id}')">
+                    Cancelar
+                </button>
+            `;
+    }
+
     const card = document.createElement("article");
     card.className = "activity-post";
 
@@ -320,28 +388,35 @@ function renderizarFeedAtividades(atividades) {
                 <h3>${atividade.titulo}</h3>
                 <p class="post-description">${descricao}</p>
 
+                <div class="capacity-box">
+                    <div class="capacity-header">
+                        <span>Participantes confirmados</span>
+                        <strong>${confirmados}/${atividade.limite_vagas}</strong>
+                    </div>
+
+                    <div class="capacity-bar">
+                        <div class="capacity-fill" style="width: ${calcularPorcentagemVagas(confirmados, atividade.limite_vagas)}%;"></div>
+                    </div>
+
+                    <small>${listaEspera} pessoa(s) na lista de espera</small>
+                </div>
+
                 <div class="post-meta">
                     <div class="meta-item">🏷️ Categoria: <strong>${atividade.categoria}</strong></div>
                     <div class="meta-item">📍 Local: <strong>${atividade.local}</strong></div>
                     <div class="meta-item">📅 Data: <strong>${formatarData(atividade.data)}</strong></div>
                     <div class="meta-item">🕒 Horário: <strong>${formatarHorario(atividade.horario)}</strong></div>
-                    <div class="meta-item">👥 Vagas: <strong>${atividade.limite_vagas}</strong></div>
                     <div class="meta-item">📌 Requisitos: <strong>${requisitos}</strong></div>
+                    <div class="meta-item">👥 Lista de espera: <strong>${listaEspera}</strong></div>
                 </div>
             </div>
 
             <div class="post-actions">
-                <button class="btn-primary" onclick="participarPeloFeed('${atividade.id}')">
-                    Participar
+                <button class="${classeBotaoParticipar}" ${disabledParticipar} onclick="participarPeloFeed('${atividade.id}')">
+                    ${textoBotaoParticipar}
                 </button>
 
-                <button class="btn-acao" onclick="encerrarAtividade('${atividade.id}')">
-                    Encerrar
-                </button>
-
-                <button class="btn-del" onclick="cancelarAtividade('${atividade.id}')">
-                    Cancelar
-                </button>
+                ${botoesOrganizador}
             </div>
         `;
 
@@ -356,6 +431,16 @@ function formatarData(data) {
   if (partes.length !== 3) return data;
 
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+function calcularPorcentagemVagas(confirmados, limite) {
+  if (!limite || limite <= 0) return 0;
+
+  const porcentagem = (confirmados / limite) * 100;
+
+  if (porcentagem > 100) return 100;
+
+  return porcentagem;
 }
 
 function formatarHorario(horario) {
@@ -391,7 +476,8 @@ async function participarPeloFeed(atividade_id) {
   }
 
   alert(dados.mensagem);
-  listarInscricoes();
+
+  await listarInscricoes(false);
   listarAtividades();
 }
 
@@ -504,33 +590,42 @@ async function cancelarAtividade(id) {
   listarAtividades();
 }
 
-async function listarInscricoes() {
-    const resposta = await fetch(`${API_URL}/inscricoes`, {
+async function listarInscricoes(renderizarTabela = true) {
+  const resposta = await fetch(`${API_URL}/inscricoes`, {
     method: "GET",
     credentials: "include",
-    });
+  });
 
-    const inscricoes = await resposta.json();
+  const inscricoes = await resposta.json();
 
-    const tabela = document.querySelector("#tabInscricoes tbody");
+  inscricoesCache = inscricoes;
 
-    if (!tabela) return;
+  const statInscricoes = document.getElementById("statInscricoes");
+  if (statInscricoes) {
+    statInscricoes.textContent = inscricoes.length;
+  }
 
-    tabela.innerHTML = "";
+  if (!renderizarTabela) return;
 
-    inscricoes.forEach((inscricao) => {
+  const tabela = document.querySelector("#tabInscricoes tbody");
+
+  if (!tabela) return;
+
+  tabela.innerHTML = "";
+
+  inscricoes.forEach((inscricao) => {
     const usuario = inscricao.usuarios
-        ? inscricao.usuarios.apelido || inscricao.usuarios.nome
-        : "Usuário não encontrado";
+      ? inscricao.usuarios.apelido || inscricao.usuarios.nome
+      : "Usuário não encontrado";
 
     const atividade = inscricao.atividades
-        ? inscricao.atividades.titulo
-        : "Atividade não encontrada";
+      ? inscricao.atividades.titulo
+      : "Atividade não encontrada";
 
     let status = inscricao.status;
 
     if (inscricao.status === "Lista de Espera") {
-        status += ` - posição ${inscricao.posicao_espera}`;
+      status += ` - posição ${inscricao.posicao_espera}`;
     }
 
     tabela.innerHTML += `
@@ -545,12 +640,7 @@ async function listarInscricoes() {
                 </td>
             </tr>
         `;
-    });
-
-    const statInscricoes = document.getElementById("statInscricoes");
-    if (statInscricoes) {
-      statInscricoes.textContent = inscricoes.length;
-    }
+  });
 }
 
 async function cadastrarInscricao() {
@@ -710,10 +800,10 @@ async function excluirAvaliacao(id) {
   listarAvaliacao();
 }
 
-window.onload = function () {
-  verificarSessao();
-  listarUsuarios();
-  listarAtividades();
-  listarInscricoes();
-  listarAvaliacao();
+window.onload = async function () {
+  await verificarSessao();
+  await listarUsuarios();
+  await listarAtividades();
+  await listarInscricoes();
+  await listarAvaliacao();
 };

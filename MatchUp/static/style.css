@@ -775,3 +775,50 @@ tbody tr:hover {
         text-align: center;
     }
 }
+
+.capacity-box {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 12px;
+    margin: 16px 0;
+}
+
+.capacity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    color: #374151;
+    font-size: 14px;
+}
+
+.capacity-bar {
+    height: 9px;
+    width: 100%;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.capacity-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #2563eb, #22c55e);
+    border-radius: 999px;
+}
+
+.capacity-box small {
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.btn-disabled {
+    background: #e5e7eb;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.btn-disabled:hover {
+    background: #e5e7eb;
+}
