@@ -261,31 +261,100 @@ async function cancelarAtividade(id) {
 }
 
 async function listarInscricoes() {
-  const tabela = document.querySelector("#tabInscricoes tbody");
+    const resposta = await fetch(`${API_URL}/inscricoes`, {
+    method: "GET",
+    credentials: "include",
+    });
 
-  if (tabela) {
-    tabela.innerHTML = `
+    const inscricoes = await resposta.json();
+
+    const tabela = document.querySelector("#tabInscricoes tbody");
+
+    if (!tabela) return;
+
+    tabela.innerHTML = "";
+
+    inscricoes.forEach((inscricao) => {
+    const usuario = inscricao.usuarios
+        ? inscricao.usuarios.apelido || inscricao.usuarios.nome
+        : "Usuário não encontrado";
+
+    const atividade = inscricao.atividades
+        ? inscricao.atividades.titulo
+        : "Atividade não encontrada";
+
+    let status = inscricao.status;
+
+    if (inscricao.status === "Lista de Espera") {
+        status += ` - posição ${inscricao.posicao_espera}`;
+    }
+
+    tabela.innerHTML += `
             <tr>
-                <td colspan="3">Módulo de inscrições ainda será conectado.</td>
+                <td>${usuario}</td>
+                <td>${atividade}</td>
+                <td>${status}</td>
+                <td>
+                    <button class="btn-del" onclick="cancelarInscricao('${inscricao.id}')">
+                        Cancelar
+                    </button>
+                </td>
             </tr>
         `;
-  }
+    });
 }
 
 async function cadastrarInscricao() {
-  alert("O módulo de inscrições será implementado no próximo passo.");
+    const atividade_id = document.getElementById("i_titulo").value;
+
+    if (!atividade_id) {
+    alert("Selecione uma atividade.");
+    return;
+    }
+
+    const resposta = await fetch(`${API_URL}/inscricoes`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+        atividade_id,
+    }),
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+    }
+
+    alert(dados.mensagem);
+    listarInscricoes();
+    listarAtividades();
 }
 
-async function listarAvaliacao() {
-  const tabela = document.querySelector("#tabAvaliacoes tbody");
-
-  if (tabela) {
-    tabela.innerHTML = `
-            <tr>
-                <td colspan="4">Módulo de avaliações ainda será conectado.</td>
-            </tr>
-        `;
+async function cancelarInscricao(id) {
+  if (!confirm("Tem certeza que deseja cancelar esta inscrição?")) {
+    return;
   }
+
+  const resposta = await fetch(`${API_URL}/inscricoes/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  alert(dados.mensagem);
+  listarInscricoes();
+  listarAtividades();
 }
 
 async function cadastrarAvaliacao() {

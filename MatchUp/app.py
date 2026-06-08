@@ -472,5 +472,217 @@ def cancelar_atividade(atividade_id):
         "atividade": resposta.data[0]
     }), 200
 
+def contar_confirmados(atividade_id):
+    resposta = supabase.table("inscricoes").select("*").eq(
+        "atividade_id", atividade_id
+    ).eq("status", "Confirmado").execute()
+
+    return len(resposta.data)
+
+
+def proxima_posicao_lista_espera(atividade_id):
+    resposta = supabase.table("inscricoes").select("*").eq(
+        "atividade_id", atividade_id
+    ).eq("status", "Lista de Espera").execute()
+
+    return len(resposta.data) + 1
+
+
+def promover_primeiro_da_lista_espera(atividade_id):
+    lista_espera = supabase.table("inscricoes").select("*").eq(
+        "atividade_id", atividade_id
+    ).eq("status", "Lista de Espera").order(
+        "posicao_espera", desc=False
+    ).execute()
+
+    if not lista_espera.data:
+        return None
+
+    primeiro = lista_espera.data[0]
+
+    resposta = supabase.table("inscricoes").update({
+        "status": "Confirmado",
+        "posicao_espera": None
+    }).eq("id", primeiro["id"]).execute()
+
+    supabase.table("notificacoes").insert({
+        "usuario_id": primeiro["usuario_id"],
+        "titulo": "Inscrição confirmada",
+        "mensagem": "Você foi promovido da lista de espera para participante confirmado."
+    }).execute()
+
+    reorganizar_lista_espera(atividade_id)
+
+    return resposta.data[0]
+
+
+def reorganizar_lista_espera(atividade_id):
+    lista_espera = supabase.table("inscricoes").select("*").eq(
+        "atividade_id", atividade_id
+    ).eq("status", "Lista de Espera").order(
+        "posicao_espera", desc=False
+    ).execute()
+
+    posicao = 1
+
+    for inscricao in lista_espera.data:
+        supabase.table("inscricoes").update({
+            "posicao_espera": posicao
+        }).eq("id", inscricao["id"]).execute()
+
+        posicao += 1
+
+
+@app.route("/inscricoes", methods=["POST"])
+def cadastrar_inscricao():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json()
+    atividade_id = dados.get("atividade_id")
+
+    if not atividade_id:
+        return jsonify({"erro": "A atividade é obrigatória."}), 400
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["status"] != "Aberta":
+        return jsonify({"erro": "Não é possível se inscrever em atividades encerradas ou canceladas."}), 400
+
+    if atividade["organizador_id"] == usuario["id"]:
+        return jsonify({"erro": "O organizador não pode se inscrever na própria atividade."}), 400
+
+    inscricao_existente = supabase.table("inscricoes").select("*").eq(
+        "usuario_id", usuario["id"]
+    ).eq("atividade_id", atividade_id).execute()
+
+    if inscricao_existente.data:
+        return jsonify({"erro": "Você já está inscrito nesta atividade."}), 400
+
+    total_confirmados = contar_confirmados(atividade_id)
+
+    if total_confirmados < atividade["limite_vagas"]:
+        status = "Confirmado"
+        posicao_espera = None
+        mensagem = "Inscrição confirmada com sucesso."
+    else:
+        status = "Lista de Espera"
+        posicao_espera = proxima_posicao_lista_espera(atividade_id)
+        mensagem = f"Atividade cheia. Você entrou na lista de espera na posição {posicao_espera}."
+
+    nova_inscricao = {
+        "usuario_id": usuario["id"],
+        "atividade_id": atividade_id,
+        "status": status,
+        "posicao_espera": posicao_espera
+    }
+
+    resposta = supabase.table("inscricoes").insert(nova_inscricao).execute()
+
+    supabase.table("notificacoes").insert({
+        "usuario_id": usuario["id"],
+        "titulo": "Inscrição em atividade",
+        "mensagem": mensagem
+    }).execute()
+
+    return jsonify({
+        "mensagem": mensagem,
+        "inscricao": resposta.data[0]
+    }), 201
+
+
+@app.route("/inscricoes", methods=["GET"])
+def listar_inscricoes():
+    resposta = supabase.table("inscricoes").select(
+        "*, usuarios!inscricoes_usuario_id_fkey(nome, email, apelido), atividades!inscricoes_atividade_id_fkey(titulo, data, horario, local)"
+    ).order("criado_em", desc=True).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/minhas-inscricoes", methods=["GET"])
+def minhas_inscricoes():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("inscricoes").select(
+        "*, atividades!inscricoes_atividade_id_fkey(titulo, data, horario, local, status)"
+    ).eq("usuario_id", usuario["id"]).order("criado_em", desc=True).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/atividades/<atividade_id>/participantes", methods=["GET"])
+def consultar_participantes_atividade(atividade_id):
+    resposta = supabase.table("inscricoes").select(
+        "*, usuarios!inscricoes_usuario_id_fkey(nome, email, apelido)"
+    ).eq("atividade_id", atividade_id).order("status", desc=False).order(
+        "posicao_espera", desc=False
+    ).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/inscricoes/<inscricao_id>", methods=["DELETE"])
+def cancelar_inscricao(inscricao_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    inscricao_resposta = supabase.table("inscricoes").select("*").eq("id", inscricao_id).execute()
+
+    if not inscricao_resposta.data:
+        return jsonify({"erro": "Inscrição não encontrada."}), 404
+
+    inscricao = inscricao_resposta.data[0]
+
+    atividade_resposta = supabase.table("atividades").select("*").eq(
+        "id", inscricao["atividade_id"]
+    ).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if inscricao["usuario_id"] != usuario["id"] and atividade["organizador_id"] != usuario["id"]:
+        return jsonify({"erro": "Você não tem permissão para cancelar esta inscrição."}), 403
+
+    if atividade["status"] == "Encerrada":
+        return jsonify({"erro": "Não é possível cancelar inscrição de atividade encerrada."}), 400
+
+    status_cancelado = inscricao["status"]
+    atividade_id = inscricao["atividade_id"]
+
+    supabase.table("inscricoes").delete().eq("id", inscricao_id).execute()
+
+    promovido = None
+
+    if status_cancelado == "Confirmado":
+        promovido = promover_primeiro_da_lista_espera(atividade_id)
+    else:
+        reorganizar_lista_espera(atividade_id)
+
+    supabase.table("notificacoes").insert({
+        "usuario_id": inscricao["usuario_id"],
+        "titulo": "Inscrição cancelada",
+        "mensagem": f"Sua inscrição na atividade '{atividade['titulo']}' foi cancelada."
+    }).execute()
+
+    return jsonify({
+        "mensagem": "Inscrição cancelada com sucesso.",
+        "promovido_da_lista_espera": promovido
+    }), 200
+
 if __name__ == "__main__":
     app.run(debug=True)
