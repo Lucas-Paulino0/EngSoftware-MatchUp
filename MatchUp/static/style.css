@@ -822,3 +822,168 @@ tbody tr:hover {
 .btn-disabled:hover {
     background: #e5e7eb;
 }
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 18px;
+    overflow-y: auto;
+}
+
+.modal-card {
+    width: min(900px, 100%);
+    background: white;
+    border-radius: 26px;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 22px;
+    background: linear-gradient(135deg, #2563eb, #16a34a);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 28px;
+}
+
+.modal-header p {
+    margin: 6px 0 0;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.modal-close {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    color: white;
+    font-size: 28px;
+    line-height: 1;
+    padding: 0;
+}
+
+.modal-content {
+    padding: 22px;
+}
+
+.activity-detail-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 0.6fr;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.detail-box {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 18px;
+}
+
+.detail-box h3,
+.detail-section h3,
+.inline-review-box h3 {
+    margin-top: 0;
+}
+
+.detail-box p {
+    color: #374151;
+    margin: 8px 0;
+}
+
+.detail-box button {
+    margin-bottom: 10px;
+}
+
+.detail-section {
+    margin-top: 18px;
+}
+
+.participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.participant-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+
+.participant-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.participant-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #dbeafe;
+    color: #1d4ed8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+}
+
+.participant-info strong {
+    display: block;
+}
+
+.participant-info span {
+    display: block;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.participant-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.inline-review-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.inline-review-box input {
+    margin-bottom: 12px;
+}
+
+@media (max-width: 760px) {
+    .activity-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .participant-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .participant-actions {
+        flex-direction: column;
+    }
+}

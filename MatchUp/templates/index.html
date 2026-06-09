@@ -24,7 +24,6 @@
                 <a href="#criar-atividade">➕ Criar atividade</a>
                 <a href="#inscricoes">🎟️ Minhas inscrições</a>
                 <a href="#usuarios">👥 Pessoas</a>
-                <a href="#avaliacoes">⭐ Avaliações</a>
             </nav>
 
             <div class="mini-card">
@@ -241,68 +240,6 @@
                 </div>
             </section>
 
-            <!-- AVALIAÇÕES -->
-            <section id="avaliacoes" class="content-card">
-                <div class="section-title">
-                    <div>
-                        <h2>Avaliações</h2>
-                        <p>Avalie outros participantes após uma atividade encerrada.</p>
-                    </div>
-
-                    <button class="btn-secondary" onclick="listarAvaliacao()">Atualizar</button>
-                </div>
-
-                <div class="form-grid four">
-                    <div>
-                        <label>Avaliador</label>
-                        <select id="av_email">
-                            <option value="">Usuário logado será usado</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>Avaliado</label>
-                        <select id="av_avaliado">
-                            <option value="">Selecione o avaliado...</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>Atividade</label>
-                        <select id="av_titulo">
-                            <option value="">Selecione a atividade...</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>Nota</label>
-                        <input id="av_nota" type="number" min="0" max="10" placeholder="0 a 10">
-                    </div>
-
-                    <div class="wide">
-                        <label>Comentário</label>
-                        <input id="av_comentario" placeholder="Como foi a experiência?">
-                    </div>
-                </div>
-
-                <button class="btn-primary full" onclick="cadastrarAvaliacao()">Registrar avaliação</button>
-
-                <div class="table-wrapper">
-                    <table id="tabAvaliacoes">
-                        <thead>
-                            <tr>
-                                <th>Avaliador</th>
-                                <th>Avaliado</th>
-                                <th>Atividade</th>
-                                <th>Nota</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
             <!-- USUÁRIOS -->
             <section id="usuarios" class="content-card">
                 <div class="section-title">
@@ -369,6 +306,23 @@
                 </div>
             </div>
         </aside>
+    </div>
+
+    <div id="modalDetalhesAtividade" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2 id="modalTituloAtividade">Detalhes da atividade</h2>
+                    <p id="modalSubtituloAtividade">Informações da atividade selecionada</p>
+                </div>
+
+                <button class="modal-close" onclick="fecharDetalhesAtividade()">×</button>
+            </div>
+
+            <div id="modalConteudoAtividade" class="modal-content">
+                Carregando...
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>

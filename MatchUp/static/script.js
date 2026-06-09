@@ -412,6 +412,10 @@ function renderizarFeedAtividades(atividades) {
             </div>
 
             <div class="post-actions">
+                <button class="btn-secondary" onclick="abrirDetalhesAtividade('${atividade.id}')">
+                    Ver detalhes
+                </button>
+
                 <button class="${classeBotaoParticipar}" ${disabledParticipar} onclick="participarPeloFeed('${atividade.id}')">
                     ${textoBotaoParticipar}
                 </button>
@@ -548,27 +552,6 @@ function renderizarCardsUsuarios(usuarios) {
   });
 }
 
-async function encerrarAtividade(id) {
-  if (!confirm("Tem certeza que deseja encerrar esta atividade?")) {
-    return;
-  }
-
-  const resposta = await fetch(`${API_URL}/atividades/${id}/encerrar`, {
-    method: "PUT",
-    credentials: "include",
-  });
-
-  const dados = await resposta.json();
-
-  if (!resposta.ok) {
-    alert(dados.erro);
-    return;
-  }
-
-  alert(dados.mensagem);
-  listarAtividades();
-}
-
 async function cancelarAtividade(id) {
   if (!confirm("Tem certeza que deseja cancelar esta atividade?")) {
     return;
@@ -587,7 +570,39 @@ async function cancelarAtividade(id) {
   }
 
   alert(dados.mensagem);
-  listarAtividades();
+
+  await listarAtividades();
+  await listarInscricoes();
+
+  const modal = document.getElementById("modalDetalhesAtividade");
+  if (modal && !modal.classList.contains("hidden")) {
+    fecharDetalhesAtividade();
+  }
+}
+
+async function encerrarAtividade(id) {
+  if (!confirm("Tem certeza que deseja encerrar esta atividade?")) {
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/atividades/${id}/encerrar`, {
+    method: "PUT",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  alert(dados.mensagem);
+
+  await listarAtividades();
+  await listarInscricoes();
+
+  abrirDetalhesAtividade(id);
 }
 
 async function listarInscricoes(renderizarTabela = true) {
@@ -798,6 +813,275 @@ async function excluirAvaliacao(id) {
 
   alert(dados.mensagem);
   listarAvaliacao();
+}
+
+async function abrirDetalhesAtividade(atividade_id) {
+  const atividade = atividadesCache.find((a) => a.id === atividade_id);
+
+  if (!atividade) {
+    alert("Atividade não encontrada no feed.");
+    return;
+  }
+
+  const modal = document.getElementById("modalDetalhesAtividade");
+  const titulo = document.getElementById("modalTituloAtividade");
+  const subtitulo = document.getElementById("modalSubtituloAtividade");
+  const conteudo = document.getElementById("modalConteudoAtividade");
+
+  titulo.textContent = atividade.titulo;
+  subtitulo.textContent = `${atividade.categoria} • ${formatarData(atividade.data)} às ${formatarHorario(atividade.horario)}`;
+
+  conteudo.innerHTML = `
+        <div class="empty-state">
+            Carregando participantes...
+        </div>
+    `;
+
+  modal.classList.remove("hidden");
+
+  const resposta = await fetch(
+    `${API_URL}/atividades/${atividade_id}/participantes`,
+    {
+      method: "GET",
+      credentials: "include",
+    },
+  );
+
+  const participantes = await resposta.json();
+
+  renderizarDetalhesAtividade(atividade, participantes);
+}
+
+function fecharDetalhesAtividade() {
+  const modal = document.getElementById("modalDetalhesAtividade");
+  modal.classList.add("hidden");
+}
+
+function renderizarDetalhesAtividade(atividade, participantes) {
+  const conteudo = document.getElementById("modalConteudoAtividade");
+
+  const organizador = atividade.usuarios
+    ? atividade.usuarios.apelido || atividade.usuarios.nome
+    : "Organizador";
+
+  const confirmados = participantes.filter((p) => p.status === "Confirmado");
+  const listaEspera = participantes.filter(
+    (p) => p.status === "Lista de Espera",
+  );
+
+  const souOrganizador =
+    usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
+
+  conteudo.innerHTML = `
+        <div class="activity-detail-grid">
+            <div class="detail-box">
+                <h3>Informações</h3>
+
+                <p><strong>Organizador:</strong> ${organizador}</p>
+                <p><strong>Status:</strong> ${atividade.status}</p>
+                <p><strong>Local:</strong> ${atividade.local}</p>
+                <p><strong>Data:</strong> ${formatarData(atividade.data)}</p>
+                <p><strong>Horário:</strong> ${formatarHorario(atividade.horario)}</p>
+                <p><strong>Vagas:</strong> ${confirmados.length}/${atividade.limite_vagas}</p>
+                <p><strong>Descrição:</strong> ${atividade.descricao || "Sem descrição."}</p>
+                <p><strong>Requisitos:</strong> ${atividade.requisitos || "Nenhum requisito informado."}</p>
+            </div>
+
+            <div class="detail-box">
+                <h3>Ações</h3>
+
+                <button class="btn-primary full" onclick="participarPeloFeed('${atividade.id}')">
+                    Participar
+                </button>
+
+                ${
+                  souOrganizador && atividade.status === "Aberta"
+                    ? `
+                        <button class="btn-acao full" onclick="encerrarAtividade('${atividade.id}')">
+                            Encerrar atividade
+                        </button>
+
+                        <button class="btn-del full" onclick="cancelarAtividade('${atividade.id}')">
+                            Cancelar atividade
+                        </button>
+                    `
+                    : ""
+                }
+
+                <button class="btn-danger full" onclick="denunciarAtividadeEmBreve()">
+                    Denunciar atividade
+                </button>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <h3>Participantes confirmados</h3>
+            <div class="participants-list">
+                ${renderizarListaParticipantes(confirmados, atividade)}
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <h3>Lista de espera</h3>
+            <div class="participants-list">
+                ${renderizarListaEspera(listaEspera)}
+            </div>
+        </div>
+    `;
+}
+
+function renderizarListaParticipantes(participantes, atividade) {
+  if (!participantes || participantes.length === 0) {
+    return `
+            <div class="empty-state">
+                Nenhum participante confirmado ainda.
+            </div>
+        `;
+  }
+
+  return participantes
+    .map((participante) => {
+      const usuario = participante.usuarios;
+      const nome = usuario ? usuario.apelido || usuario.nome : "Usuário";
+
+      const inicial = pegarInicial(nome);
+
+      const podeAvaliar =
+        atividade.status === "Encerrada" &&
+        usuarioLogadoCache &&
+        participante.usuario_id !== usuarioLogadoCache.id;
+
+      return `
+            <div class="participant-card">
+                <div class="participant-info">
+                    <div class="participant-avatar">${inicial}</div>
+                    <div>
+                        <strong>${nome}</strong>
+                        <span>${usuario ? usuario.email : ""}</span>
+                    </div>
+                </div>
+
+                <div class="participant-actions">
+                    ${
+                      podeAvaliar
+                        ? `
+                            <button class="btn-primary" onclick="abrirFormularioAvaliacao('${atividade.id}', '${participante.usuario_id}', '${nome}')">
+                                Avaliar
+                            </button>
+                        `
+                        : ""
+                    }
+
+                    <button class="btn-danger" onclick="denunciarUsuarioEmBreve()">
+                        Denunciar
+                    </button>
+                </div>
+            </div>
+        `;
+    })
+    .join("");
+}
+
+function renderizarListaEspera(listaEspera) {
+  if (!listaEspera || listaEspera.length === 0) {
+    return `
+            <div class="empty-state">
+                Ninguém na lista de espera.
+            </div>
+        `;
+  }
+
+  return listaEspera
+    .map((participante) => {
+      const usuario = participante.usuarios;
+      const nome = usuario ? usuario.apelido || usuario.nome : "Usuário";
+
+      return `
+            <div class="participant-card">
+                <div class="participant-info">
+                    <div class="participant-avatar">${pegarInicial(nome)}</div>
+                    <div>
+                        <strong>${nome}</strong>
+                        <span>Posição ${participante.posicao_espera}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    })
+    .join("");
+}
+
+function abrirFormularioAvaliacao(atividade_id, avaliado_id, nomeAvaliado) {
+  const conteudo = document.getElementById("modalConteudoAtividade");
+
+  const formulario = document.createElement("div");
+  formulario.className = "inline-review-box";
+
+  formulario.innerHTML = `
+        <h3>Avaliar ${nomeAvaliado}</h3>
+
+        <label>Nota</label>
+        <input id="notaInlineAvaliacao" type="number" min="0" max="10" placeholder="0 a 10">
+
+        <label>Comentário</label>
+        <input id="comentarioInlineAvaliacao" placeholder="Escreva um elogio ou comentário sobre o participante">
+
+        <div class="button-row">
+            <button class="btn-primary" onclick="enviarAvaliacaoInline('${atividade_id}', '${avaliado_id}')">
+                Enviar avaliação
+            </button>
+
+            <button class="btn-danger" onclick="abrirDetalhesAtividade('${atividade_id}')">
+                Cancelar
+            </button>
+        </div>
+    `;
+
+  conteudo.prepend(formulario);
+}
+
+async function enviarAvaliacaoInline(atividade_id, avaliado_id) {
+  const nota = document.getElementById("notaInlineAvaliacao").value;
+  const comentario = document.getElementById("comentarioInlineAvaliacao").value;
+
+  if (nota === "") {
+    alert("Informe uma nota.");
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/avaliacoes`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      atividade_id,
+      avaliado_id,
+      nota,
+      comentario,
+    }),
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  alert(dados.mensagem);
+
+  abrirDetalhesAtividade(atividade_id);
+  listarAvaliacao();
+}
+
+function denunciarAtividadeEmBreve() {
+  alert("O módulo de denúncias será implementado no próximo passo.");
+}
+
+function denunciarUsuarioEmBreve() {
+  alert("O módulo de denúncias será implementado no próximo passo.");
 }
 
 window.onload = async function () {
