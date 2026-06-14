@@ -944,27 +944,46 @@ async function abrirDetalhesAtividade(atividade_id) {
   subtitulo.textContent = `${atividade.categoria} • ${formatarData(atividade.data)} às ${formatarHorario(atividade.horario)}`;
 
   conteudo.innerHTML = `
-        <div class="empty-state">
-            Carregando participantes...
-        </div>
-    `;
+    <div class="empty-state">
+      Carregando participantes...
+    </div>
+  `;
 
   modal.classList.remove("hidden");
 
-  const resposta = await fetch(
-    `${API_URL}/atividades/${atividade_id}/participantes`,
-    {
-      method: "GET",
-      credentials: "include",
-    },
-  );
+  try {
+    const resposta = await fetch(
+      `${API_URL}/atividades/${atividade_id}/participantes`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
+    );
 
-  const participantes = await resposta.json();
+    const participantes = await resposta.json();
 
-  atividadeDetalhesAtual = atividade;
-  participantesDetalhesAtual = participantes;
+    if (!resposta.ok) {
+      conteudo.innerHTML = `
+        <div class="empty-state">
+          ${participantes.erro || "Erro ao carregar participantes."}
+        </div>
+      `;
+      return;
+    }
 
-  renderizarDetalhesAtividade(atividade, participantes);
+    atividadeDetalhesAtual = atividade;
+    participantesDetalhesAtual = participantes;
+
+    renderizarDetalhesAtividade(atividade, participantes);
+  } catch (erro) {
+    console.error("Erro ao abrir detalhes da atividade:", erro);
+
+    conteudo.innerHTML = `
+      <div class="empty-state">
+        Erro ao carregar os detalhes da atividade. Verifique o console do navegador.
+      </div>
+    `;
+  }
 }
 
 function fecharDetalhesAtividade() {
@@ -984,14 +1003,21 @@ function renderizarDetalhesAtividade(atividade, participantes) {
     (p) => p.status === "Lista de Espera",
   );
 
+  const souOrganizador =
+    usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
+
+  const usuarioEhParticipanteConfirmado = usuarioLogadoCache
+    ? confirmados.some((p) => p.usuario_id === usuarioLogadoCache.id)
+    : false;
+
+  const usuarioPodeVerChat =
+    usuarioLogadoCache && (souOrganizador || usuarioEhParticipanteConfirmado);
+
   const organizadorCard = {
     usuario_id: atividade.organizador_id,
     status: "Organizador",
     usuarios: atividade.usuarios,
   };
-
-  const souOrganizador =
-    usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
 
   conteudo.innerHTML = `
         <div class="activity-detail-grid">
@@ -1035,6 +1061,8 @@ function renderizarDetalhesAtividade(atividade, participantes) {
             </div>
         </div>
 
+        ${renderizarBlocoChatAtividade(atividade, usuarioPodeVerChat)}
+
         <div class="detail-section">
             <h3>Participantes confirmados</h3>
             <div class="participants-list">
@@ -1049,6 +1077,9 @@ function renderizarDetalhesAtividade(atividade, participantes) {
             </div>
         </div>
     `;
+  if (usuarioPodeVerChat) {
+    carregarChatAtividade(atividade.id);
+  }
 }
 
 function renderizarListaParticipantes(participantes, atividade) {
@@ -1414,6 +1445,174 @@ function mostrarCadastroAuth() {
   if (subtitulo)
     subtitulo.textContent =
       "Crie seu perfil para publicar e participar de atividades.";
+}
+
+function renderizarBlocoChatAtividade(atividade, usuarioPodeVerChat) {
+  if (!usuarioPodeVerChat) {
+    return `
+      <div class="detail-section chat-section">
+        <h3>Chat da atividade</h3>
+        <div class="empty-state">
+          O chat fica disponível apenas para o organizador e participantes confirmados.
+        </div>
+      </div>
+    `;
+  }
+
+  const chatAberto = atividade.status === "Aberta";
+
+  return `
+    <div class="detail-section chat-section">
+      <div class="chat-header">
+        <div>
+          <h3>Chat da atividade</h3>
+          <p>Converse com o organizador e participantes confirmados.</p>
+        </div>
+
+        <button class="btn-secondary" onclick="carregarChatAtividade('${atividade.id}')">
+          Atualizar chat
+        </button>
+      </div>
+
+      <div id="chatMensagens" class="chat-messages">
+        <div class="empty-state">
+          Carregando mensagens...
+        </div>
+      </div>
+
+      ${
+        chatAberto
+          ? `
+            <div class="chat-input-row">
+              <input id="chatMensagemInput" maxlength="500" placeholder="Escreva uma mensagem para o grupo...">
+
+              <button class="btn-primary" onclick="enviarMensagemChat('${atividade.id}')">
+                Enviar
+              </button>
+            </div>
+          `
+          : `
+            <div class="chat-closed">
+              Chat fechado porque a atividade não está mais aberta.
+            </div>
+          `
+      }
+    </div>
+  `;
+}
+
+async function carregarChatAtividade(atividade_id) {
+  const area = document.getElementById("chatMensagens");
+
+  if (!area) return;
+
+  area.innerHTML = `
+    <div class="empty-state">
+      Carregando mensagens...
+    </div>
+  `;
+
+  const resposta = await fetch(`${API_URL}/atividades/${atividade_id}/chat`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    area.innerHTML = `
+      <div class="empty-state">
+        ${dados.erro}
+      </div>
+    `;
+    return;
+  }
+
+  if (!dados || dados.length === 0) {
+    area.innerHTML = `
+      <div class="empty-state">
+        Nenhuma mensagem enviada ainda. Seja o primeiro a falar!
+      </div>
+    `;
+    return;
+  }
+
+  area.innerHTML = "";
+
+  dados.forEach((msg) => {
+    const usuario = msg.usuarios;
+    const nome = usuario ? usuario.apelido || usuario.nome : "Usuário";
+    const minhaMensagem =
+      usuarioLogadoCache && msg.usuario_id === usuarioLogadoCache.id;
+
+    const div = document.createElement("div");
+    div.className = minhaMensagem ? "chat-message mine" : "chat-message";
+
+    div.innerHTML = `
+      <div class="chat-message-top">
+        <strong>${nome}</strong>
+        <span>${formatarDataHora(msg.criado_em)}</span>
+      </div>
+
+      <p>${msg.mensagem}</p>
+    `;
+
+    area.appendChild(div);
+  });
+
+  area.scrollTop = area.scrollHeight;
+}
+
+async function enviarMensagemChat(atividade_id) {
+  const input = document.getElementById("chatMensagemInput");
+
+  if (!input) return;
+
+  const mensagem = input.value.trim();
+
+  if (!mensagem) {
+    alert("Digite uma mensagem antes de enviar.");
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/atividades/${atividade_id}/chat`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      mensagem,
+    }),
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  input.value = "";
+
+  await carregarChatAtividade(atividade_id);
+}
+
+function formatarDataHora(valor) {
+  if (!valor) return "";
+
+  const data = new Date(valor);
+
+  if (Number.isNaN(data.getTime())) {
+    return "";
+  }
+
+  return data.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 window.onload = async function () {

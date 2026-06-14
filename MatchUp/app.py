@@ -1064,6 +1064,101 @@ def cancelar_denuncia(denuncia_id):
         "mensagem": "Denúncia cancelada com sucesso.",
         "denuncia": atualizada.data[0]
     }), 200
+    
+def usuario_tem_acesso_chat(usuario_id, atividade):
+    if atividade["organizador_id"] == usuario_id:
+        return True
+
+    inscricao = supabase.table("inscricoes").select("*").eq(
+        "usuario_id", usuario_id
+    ).eq(
+        "atividade_id", atividade["id"]
+    ).eq(
+        "status", "Confirmado"
+    ).execute()
+
+    return bool(inscricao.data)
+
+
+@app.route("/atividades/<atividade_id>/chat", methods=["GET"])
+def listar_mensagens_chat(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividade_resposta = supabase.table("atividades").select("*").eq(
+        "id", atividade_id
+    ).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if not usuario_tem_acesso_chat(usuario["id"], atividade):
+        return jsonify({
+            "erro": "Você não tem acesso ao chat desta atividade."
+        }), 403
+
+    resposta = supabase.table("mensagens_chat").select(
+        "*, usuarios!mensagens_chat_usuario_id_fkey(nome, email, apelido)"
+    ).eq(
+        "atividade_id", atividade_id
+    ).order(
+        "criado_em", desc=False
+    ).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/atividades/<atividade_id>/chat", methods=["POST"])
+def enviar_mensagem_chat(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json() or {}
+    mensagem = dados.get("mensagem", "").strip()
+
+    if not mensagem:
+        return jsonify({"erro": "A mensagem não pode estar vazia."}), 400
+
+    if len(mensagem) > 500:
+        return jsonify({"erro": "A mensagem deve ter no máximo 500 caracteres."}), 400
+
+    atividade_resposta = supabase.table("atividades").select("*").eq(
+        "id", atividade_id
+    ).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["status"] != "Aberta":
+        return jsonify({
+            "erro": "O chat só permite novas mensagens enquanto a atividade está aberta."
+        }), 400
+
+    if not usuario_tem_acesso_chat(usuario["id"], atividade):
+        return jsonify({
+            "erro": "Você não tem acesso ao chat desta atividade."
+        }), 403
+
+    nova_mensagem = {
+        "atividade_id": atividade_id,
+        "usuario_id": usuario["id"],
+        "mensagem": mensagem
+    }
+
+    resposta = supabase.table("mensagens_chat").insert(nova_mensagem).execute()
+
+    return jsonify({
+        "mensagem": "Mensagem enviada com sucesso.",
+        "chat": resposta.data[0]
+    }), 201
 
 if __name__ == "__main__":
     app.run(debug=True)
