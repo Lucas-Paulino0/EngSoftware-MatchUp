@@ -304,6 +304,42 @@
         </div>
     </div>
 
+    <div id="modalAvaliacao" class="modal-overlay hidden">
+        <div class="modal-card modal-small">
+            <div class="modal-header">
+                <div>
+                    <h2>Registrar avaliação</h2>
+                    <p id="modalAvaliacaoSubtitulo">Avalie o participante selecionado</p>
+                </div>
+
+                <button class="modal-close" onclick="fecharModalAvaliacao()">×</button>
+            </div>
+
+            <div class="modal-content">
+                <input type="hidden" id="avaliacaoAtividadeId">
+                <input type="hidden" id="avaliacaoAvaliadoId">
+
+                <div class="modal-form">
+                    <label>Nota</label>
+                    <input id="avaliacaoNota" type="number" min="0" max="10" placeholder="Digite uma nota de 0 a 10">
+
+                    <label>Comentário</label>
+                    <textarea id="avaliacaoComentario" rows="5" placeholder="Escreva um elogio ou comentário sobre o participante..."></textarea>
+
+                    <div class="button-row">
+                        <button class="btn-primary" onclick="enviarAvaliacaoModal()">
+                            Enviar avaliação
+                        </button>
+
+                        <button class="btn-secondary" onclick="fecharModalAvaliacao()">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="modalDenuncia" class="modal-overlay hidden">
         <div class="modal-card modal-small">
             <div class="modal-header danger-header">

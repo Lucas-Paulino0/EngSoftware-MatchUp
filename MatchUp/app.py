@@ -418,9 +418,11 @@ def alterar_atividade(atividade_id):
             "atividade_id", atividade_id
         ).eq("status", "Confirmado").execute()
 
-        if dados_atualizados["limite_vagas"] < len(participantes_confirmados.data):
+        total_jogadores_atual = len(participantes_confirmados.data) + 1
+
+        if dados_atualizados["limite_vagas"] < total_jogadores_atual:
             return jsonify({
-                "erro": "O novo limite de vagas é menor que o número atual de participantes confirmados."
+                "erro": "O novo limite de vagas é menor que o número atual de jogadores, incluindo o organizador."
             }), 400
 
     data_final = dados_atualizados.get("data", atividade["data"])
@@ -580,7 +582,10 @@ def cadastrar_inscricao():
 
     total_confirmados = contar_confirmados(atividade_id)
 
-    if total_confirmados < atividade["limite_vagas"]:
+    # O organizador também conta como jogador da atividade
+    total_jogadores = total_confirmados + 1
+
+    if total_jogadores < atividade["limite_vagas"]:
         status = "Confirmado"
         posicao_espera = None
         mensagem = "Inscrição confirmada com sucesso."
@@ -697,13 +702,28 @@ def cancelar_inscricao(inscricao_id):
     }), 200
     
 def usuario_participou_atividade(usuario_id, atividade_id):
-    resposta = supabase.table("inscricoes").select("*").eq(
+    atividade_resposta = supabase.table("atividades").select(
+        "id, organizador_id"
+    ).eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return False
+
+    atividade = atividade_resposta.data[0]
+
+    # O organizador também é considerado participante da atividade
+    if atividade["organizador_id"] == usuario_id:
+        return True
+
+    inscricao = supabase.table("inscricoes").select("*").eq(
         "usuario_id", usuario_id
-    ).eq("atividade_id", atividade_id).eq(
+    ).eq(
+        "atividade_id", atividade_id
+    ).eq(
         "status", "Confirmado"
     ).execute()
 
-    return len(resposta.data) > 0
+    return bool(inscricao.data)
 
 
 def avaliacao_dentro_do_prazo(avaliacao):
