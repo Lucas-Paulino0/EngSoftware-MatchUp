@@ -3,11 +3,20 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import supabase
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
 import os
 
+load_dotenv()
 
 app = Flask(__name__)
+
 app.secret_key = os.getenv("SECRET_KEY", "matchup_secret_key")
+app.permanent_session_lifetime = timedelta(days=7)
+
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = False
+
 CORS(app, supports_credentials=True)
 
 
@@ -180,6 +189,7 @@ def excluir_usuario(email):
     return jsonify({"mensagem": "Usuário excluído com sucesso."}), 200
 
 
+
 @app.route("/login", methods=["POST"])
 def login():
     dados = request.get_json()
@@ -199,6 +209,8 @@ def login():
 
     if not check_password_hash(usuario["senha"], senha):
         return jsonify({"erro": "E-mail ou senha inválidos."}), 401
+
+    session.permanent = True
 
     session["usuario"] = {
         "id": usuario["id"],

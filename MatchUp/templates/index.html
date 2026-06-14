@@ -22,8 +22,6 @@
             <nav class="nav-menu">
                 <a href="#feed" class="active">🏠 Início</a>
                 <a href="#criar-atividade">➕ Criar atividade</a>
-                <a href="#inscricoes">🎟️ Minhas inscrições</a>
-                <a href="#usuarios">👥 Pessoas</a>
             </nav>
 
             <div class="mini-card">
@@ -201,69 +199,6 @@
                     <div class="empty-state">
                         Carregando atividades...
                     </div>
-                </div>
-            </section>
-
-            <!-- INSCRIÇÕES -->
-            <section id="inscricoes" class="content-card">
-                <div class="section-title">
-                    <div>
-                        <h2>Inscrições</h2>
-                        <p>Gerencie inscrições e lista de espera.</p>
-                    </div>
-
-                    <button class="btn-secondary" onclick="listarInscricoes()">Atualizar</button>
-                </div>
-
-                <div class="join-box">
-                    <p>A inscrição será feita usando o usuário atualmente logado.</p>
-
-                    <select id="i_titulo">
-                        <option value="">Selecione a atividade...</option>
-                    </select>
-
-                    <button class="btn-primary" onclick="cadastrarInscricao()">Participar</button>
-                </div>
-
-                <div class="table-wrapper">
-                    <table id="tabInscricoes">
-                        <thead>
-                            <tr>
-                                <th>Participante</th>
-                                <th>Atividade</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- USUÁRIOS -->
-            <section id="usuarios" class="content-card">
-                <div class="section-title">
-                    <div>
-                        <h2>Pessoas</h2>
-                        <p>Usuários cadastrados na comunidade MatchUp.</p>
-                    </div>
-
-                    <button class="btn-secondary" onclick="listarUsuarios()">Atualizar</button>
-                </div>
-
-                <div id="cardsUsuarios" class="people-grid"></div>
-
-                <div class="table-wrapper hidden-table">
-                    <table id="tabUsuarios">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>E-mail</th>
-                                <th>Apelido</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
                 </div>
             </section>
         </main>

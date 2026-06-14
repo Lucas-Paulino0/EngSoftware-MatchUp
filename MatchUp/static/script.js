@@ -26,14 +26,17 @@ async function verificarSessao() {
 
     if (dados.logado) {
       areaSessao.innerHTML = `
-                <div class="logged-user-mini">
-                    <div class="logged-avatar">${pegarInicial(dados.usuario.nome)}</div>
-                    <div>
-                        <strong>${dados.usuario.nome}</strong>
-                        <span>${dados.usuario.email}</span>
-                    </div>
-                </div>
-            `;
+          <div class="logged-user-mini">
+              <div class="logged-avatar">${pegarInicial(dados.usuario.nome)}</div>
+
+              <div>
+                  <strong>${dados.usuario.nome}</strong>
+                  <span>${dados.usuario.email}</span>
+              </div>
+
+              <button class="mini-logout-btn" onclick="logout()">Sair</button>
+          </div>
+      `;
 
       if (authCard) authCard.classList.add("hidden");
       if (welcomeCard) welcomeCard.classList.remove("hidden");
@@ -130,10 +133,9 @@ async function login() {
   document.getElementById("loginEmail").value = "";
   document.getElementById("loginSenha").value = "";
 
-  verificarSessao();
-  listarAtividades();
-  listarInscricoes();
-  listarAvaliacao();
+  await verificarSessao();
+  await listarAtividades();
+  await listarInscricoes(false);
 }
 
 async function logout() {
@@ -146,10 +148,9 @@ async function logout() {
 
   alert(dados.mensagem);
 
-  verificarSessao();
-  listarAtividades();
-  listarInscricoes();
-  listarAvaliacao();
+  await verificarSessao();
+  await listarAtividades();
+  await listarInscricoes(false);
 }
 
 async function listarUsuarios() {
@@ -258,6 +259,23 @@ async function listarAtividades() {
 
   const atividades = await resposta.json();
 
+  atividades.sort((a, b) => {
+    const prioridadeStatus = {
+      Aberta: 1,
+      Encerrada: 2,
+      Cancelada: 3,
+    };
+
+    const prioridadeA = prioridadeStatus[a.status] || 99;
+    const prioridadeB = prioridadeStatus[b.status] || 99;
+
+    if (prioridadeA !== prioridadeB) {
+      return prioridadeA - prioridadeB;
+    }
+
+    return new Date(b.criado_em) - new Date(a.criado_em);
+  });
+
   atividadesCache = atividades;
 
   await listarInscricoes(false);
@@ -270,8 +288,6 @@ async function listarAtividades() {
     statAtividades.textContent = atividades.length;
   }
 }
-
-atualizarDropdownsAtividades(atividades);
 
 function renderizarFeedAtividades(atividades) {
   const feed = document.getElementById("feedAtividades");
@@ -326,9 +342,48 @@ function renderizarFeedAtividades(atividades) {
     const souOrganizador =
       usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
 
-    let textoBotaoParticipar = "Participar";
-    let classeBotaoParticipar = "btn-primary";
-    let disabledParticipar = "";
+    let botaoParticipacao = "";
+
+    if (!usuarioLogadoCache) {
+      botaoParticipacao = `
+            <button class="btn-disabled" disabled>
+                Faça login para participar
+            </button>
+        `;
+    } else if (souOrganizador) {
+      botaoParticipacao = `
+            <button class="btn-disabled" disabled>
+                Você é o organizador
+            </button>
+        `;
+    } else if (minhaInscricao) {
+      const textoStatus =
+        minhaInscricao.status === "Confirmado"
+          ? "Inscrito"
+          : `Lista de espera #${minhaInscricao.posicao_espera}`;
+
+      botaoParticipacao = `
+            <button class="btn-disabled" disabled>
+                ${textoStatus}
+            </button>
+
+            <button class="btn-danger" onclick="sairDaAtividade('${atividade.id}')">
+                Sair da atividade
+            </button>
+        `;
+    } else if (atividade.status !== "Aberta") {
+      botaoParticipacao = `
+            <button class="btn-disabled" disabled>
+                Indisponível
+            </button>
+        `;
+    } else {
+      botaoParticipacao = `
+            <button class="btn-primary" onclick="participarPeloFeed('${atividade.id}')">
+                Participar
+            </button>
+        `;
+    }
 
     if (!usuarioLogadoCache) {
       textoBotaoParticipar = "Faça login para participar";
@@ -416,9 +471,7 @@ function renderizarFeedAtividades(atividades) {
                     Ver detalhes
                 </button>
 
-                <button class="${classeBotaoParticipar}" ${disabledParticipar} onclick="participarPeloFeed('${atividade.id}')">
-                    ${textoBotaoParticipar}
-                </button>
+                ${botaoParticipacao}
 
                 ${botoesOrganizador}
             </div>
@@ -603,6 +656,45 @@ async function encerrarAtividade(id) {
   await listarInscricoes();
 
   abrirDetalhesAtividade(id);
+}
+
+async function sairDaAtividade(atividade_id) {
+  if (!usuarioLogadoCache) {
+    alert("Você precisa estar logado.");
+    return;
+  }
+
+  const minhaInscricao = inscricoesCache.find((i) => {
+    return (
+      i.atividade_id === atividade_id && i.usuario_id === usuarioLogadoCache.id
+    );
+  });
+
+  if (!minhaInscricao) {
+    alert("Você não está inscrito nesta atividade.");
+    return;
+  }
+
+  if (!confirm("Tem certeza que deseja sair desta atividade?")) {
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/inscricoes/${minhaInscricao.id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  alert(dados.mensagem);
+
+  await listarInscricoes(false);
+  await listarAtividades();
 }
 
 async function listarInscricoes(renderizarTabela = true) {
@@ -865,9 +957,13 @@ function renderizarDetalhesAtividade(atividade, participantes) {
     : "Organizador";
 
   const confirmados = participantes.filter((p) => p.status === "Confirmado");
-  const listaEspera = participantes.filter(
-    (p) => p.status === "Lista de Espera",
-  );
+  const listaEspera = participantes.filter((p) => p.status === "Lista de Espera");
+
+  const organizadorCard = {
+    usuario_id: atividade.organizador_id,
+    status: "Organizador",
+    usuarios: atividade.usuarios,
+  };
 
   const souOrganizador =
     usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
@@ -917,7 +1013,7 @@ function renderizarDetalhesAtividade(atividade, participantes) {
         <div class="detail-section">
             <h3>Participantes confirmados</h3>
             <div class="participants-list">
-                ${renderizarListaParticipantes(confirmados, atividade)}
+                ${renderizarListaParticipantes([organizadorCard, ...confirmados], atividade)}
             </div>
         </div>
 
@@ -942,6 +1038,7 @@ function renderizarListaParticipantes(participantes, atividade) {
   return participantes
     .map((participante) => {
       const usuario = participante.usuarios;
+      const ehOrganizador = participante.status === "Organizador";
       const nome = usuario ? usuario.apelido || usuario.nome : "Usuário";
 
       const inicial = pegarInicial(nome);
@@ -949,14 +1046,18 @@ function renderizarListaParticipantes(participantes, atividade) {
       const podeAvaliar =
         atividade.status === "Encerrada" &&
         usuarioLogadoCache &&
-        participante.usuario_id !== usuarioLogadoCache.id;
+        participante.usuario_id !== usuarioLogadoCache.id &&
+        !ehOrganizador;
 
       return `
             <div class="participant-card">
                 <div class="participant-info">
                     <div class="participant-avatar">${inicial}</div>
                     <div>
-                        <strong>${nome}</strong>
+                        <strong>
+                            ${nome}
+                            ${ehOrganizador ? '<span class="role-badge">Organizador</span>' : ""}
+                        </strong>
                         <span>${usuario ? usuario.email : ""}</span>
                     </div>
                 </div>
@@ -972,9 +1073,15 @@ function renderizarListaParticipantes(participantes, atividade) {
                         : ""
                     }
 
-                    <button class="btn-danger" onclick="denunciarUsuarioEmBreve()">
-                        Denunciar
-                    </button>
+                    ${
+                      usuarioLogadoCache && participante.usuario_id !== usuarioLogadoCache.id
+                        ? `
+                            <button class="btn-danger" onclick="denunciarUsuarioEmBreve()">
+                                Denunciar
+                            </button>
+                        `
+                        : ""
+                    }
                 </div>
             </div>
         `;
@@ -1001,7 +1108,10 @@ function renderizarListaEspera(listaEspera) {
                 <div class="participant-info">
                     <div class="participant-avatar">${pegarInicial(nome)}</div>
                     <div>
-                        <strong>${nome}</strong>
+                        <strong>
+                            ${nome}
+                            ${ehOrganizador ? '<span class="role-badge">Organizador</span>' : ""}
+                        </strong>
                         <span>Posição ${participante.posicao_espera}</span>
                     </div>
                 </div>
@@ -1088,6 +1198,5 @@ window.onload = async function () {
   await verificarSessao();
   await listarUsuarios();
   await listarAtividades();
-  await listarInscricoes();
-  await listarAvaliacao();
+  await listarInscricoes(false);
 };
