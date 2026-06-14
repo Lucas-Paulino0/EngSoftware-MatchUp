@@ -65,13 +65,18 @@ async function verificarSessao() {
 }
 
 async function cadastrarUsuario() {
-  const nome = document.getElementById("nome").value;
-  const email = document.getElementById("email").value;
-  const senha = document.getElementById("senha").value;
+  const nome = document.getElementById("authNome").value.trim();
+  const email = document.getElementById("authEmail").value.trim();
+  const senha = document.getElementById("authSenha").value.trim();
   const data_nascimento =
-    document.getElementById("data_nascimento").value || null;
-  const apelido = document.getElementById("apelido").value;
-  const foto_perfil = document.getElementById("foto_perfil").value;
+    document.getElementById("authDataNascimento").value || null;
+  const apelido = document.getElementById("authApelido").value.trim();
+  const foto_perfil = document.getElementById("authFotoPerfil").value.trim();
+
+  if (!nome || !email || !senha) {
+    alert("Preencha nome, e-mail e senha.");
+    return;
+  }
 
   const resposta = await fetch(`${API_URL}/usuarios`, {
     method: "POST",
@@ -96,21 +101,28 @@ async function cadastrarUsuario() {
     return;
   }
 
-  alert(dados.mensagem);
+  alert("Conta criada com sucesso. Agora faça login.");
 
-  document.getElementById("nome").value = "";
-  document.getElementById("email").value = "";
-  document.getElementById("senha").value = "";
-  document.getElementById("data_nascimento").value = "";
-  document.getElementById("apelido").value = "";
-  document.getElementById("foto_perfil").value = "";
+  document.getElementById("authNome").value = "";
+  document.getElementById("authEmail").value = "";
+  document.getElementById("authSenha").value = "";
+  document.getElementById("authDataNascimento").value = "";
+  document.getElementById("authApelido").value = "";
+  document.getElementById("authFotoPerfil").value = "";
 
-  listarUsuarios();
+  mostrarLoginAuth();
+
+  await listarUsuarios();
 }
 
 async function login() {
-  const email = document.getElementById("loginEmail").value;
-  const senha = document.getElementById("loginSenha").value;
+  const email = document.getElementById("authLoginEmail").value.trim();
+  const senha = document.getElementById("authLoginSenha").value.trim();
+
+  if (!email || !senha) {
+    alert("Preencha e-mail e senha.");
+    return;
+  }
 
   const resposta = await fetch(`${API_URL}/login`, {
     method: "POST",
@@ -133,8 +145,10 @@ async function login() {
 
   alert(dados.mensagem);
 
-  document.getElementById("loginEmail").value = "";
-  document.getElementById("loginSenha").value = "";
+  document.getElementById("authLoginEmail").value = "";
+  document.getElementById("authLoginSenha").value = "";
+
+  fecharModalAuth();
 
   await verificarSessao();
   await listarAtividades();
@@ -1349,6 +1363,57 @@ function fecharModalCriarAtividade() {
   if (modal) {
     modal.classList.add("hidden");
   }
+}
+
+function abrirModalAuth(tipo = "login") {
+  const modal = document.getElementById("modalAuth");
+
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+
+  if (tipo === "cadastro") {
+    mostrarCadastroAuth();
+  } else {
+    mostrarLoginAuth();
+  }
+}
+
+function fecharModalAuth() {
+  const modal = document.getElementById("modalAuth");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function mostrarLoginAuth() {
+  const boxLogin = document.getElementById("boxLogin");
+  const boxCadastro = document.getElementById("boxCadastro");
+  const titulo = document.getElementById("modalAuthTitulo");
+  const subtitulo = document.getElementById("modalAuthSubtitulo");
+
+  if (boxLogin) boxLogin.classList.remove("hidden");
+  if (boxCadastro) boxCadastro.classList.add("hidden");
+
+  if (titulo) titulo.textContent = "Entrar no MatchUp";
+  if (subtitulo)
+    subtitulo.textContent = "Acesse sua conta para participar da comunidade.";
+}
+
+function mostrarCadastroAuth() {
+  const boxLogin = document.getElementById("boxLogin");
+  const boxCadastro = document.getElementById("boxCadastro");
+  const titulo = document.getElementById("modalAuthTitulo");
+  const subtitulo = document.getElementById("modalAuthSubtitulo");
+
+  if (boxLogin) boxLogin.classList.add("hidden");
+  if (boxCadastro) boxCadastro.classList.remove("hidden");
+
+  if (titulo) titulo.textContent = "Criar conta";
+  if (subtitulo)
+    subtitulo.textContent =
+      "Crie seu perfil para publicar e participar de atividades.";
 }
 
 window.onload = async function () {

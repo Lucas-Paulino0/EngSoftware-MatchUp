@@ -46,72 +46,24 @@
             </header>
 
             <!-- LOGIN / CADASTRO -->
-            <section id="authCard" class="composer-card">
-                <div class="composer-header">
-                    <div class="avatar">👤</div>
-                    <div>
-                        <h2>Entrar no MatchUp</h2>
-                        <p>Faça login para criar atividades, participar e avaliar outros usuários.</p>
-                    </div>
+            <section id="authCard" class="auth-banner">
+                <div>
+                    <h2>Entre no MatchUp</h2>
+                    <p>Faça login para criar atividades, participar de eventos, avaliar e denunciar usuários.</p>
                 </div>
 
-                <div class="auth-grid">
-                    <div class="auth-box">
-                        <h3>Login</h3>
+                <div class="auth-banner-actions">
+                    <button class="btn-primary" onclick="abrirModalAuth('login')">
+                        Entrar
+                    </button>
 
-                        <label>E-mail</label>
-                        <input id="loginEmail" placeholder="Digite seu e-mail">
-
-                        <label>Senha</label>
-                        <input id="loginSenha" type="password" placeholder="Digite sua senha">
-
-                        <div class="button-row">
-                            <button class="btn-primary" onclick="login()">Entrar</button>
-                            <button class="btn-danger" onclick="logout()">Sair</button>
-                        </div>
-                    </div>
-
-                    <div class="auth-box">
-                        <h3>Criar conta</h3>
-
-                        <div class="form-grid two">
-                            <div>
-                                <label>Nome completo</label>
-                                <input id="nome" placeholder="Ex: João Silva">
-                            </div>
-
-                            <div>
-                                <label>E-mail</label>
-                                <input id="email" placeholder="Ex: joao@email.com">
-                            </div>
-
-                            <div>
-                                <label>Senha</label>
-                                <input id="senha" type="password" placeholder="Mínimo 8 caracteres">
-                            </div>
-
-                            <div>
-                                <label>Data de nascimento</label>
-                                <input id="data_nascimento" type="date">
-                            </div>
-
-                            <div>
-                                <label>Apelido</label>
-                                <input id="apelido" placeholder="Nome público">
-                            </div>
-
-                            <div>
-                                <label>Foto de perfil</label>
-                                <input id="foto_perfil" placeholder="URL da imagem">
-                            </div>
-                        </div>
-
-                        <button class="btn-primary full" onclick="cadastrarUsuario()">Criar usuário</button>
-                    </div>
+                    <button class="btn-secondary" onclick="abrirModalAuth('cadastro')">
+                        Criar conta
+                    </button>
                 </div>
             </section>
 
-            <section id="welcomeCard" class="welcome-card hidden">
+            <section id="welcomeCard" class="welcome-card compact-welcome hidden">
                 <div class="welcome-content">
                     <div class="welcome-avatar">🎯</div>
 
@@ -121,13 +73,6 @@
                             Explore atividades, participe de eventos e acompanhe a comunidade pelo feed.
                         </p>
                     </div>
-                </div>
-
-                <div class="welcome-actions">
-                    <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()" class="welcome-button primary-link">
-                        Criar atividade
-                    </a>
-                    <a href="#feed" class="welcome-button secondary-link">Ver feed</a>
                 </div>
             </section>
 
@@ -202,6 +147,77 @@
                 </div>
             </div>
         </aside>
+    </div>
+
+    <div id="modalAuth" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2 id="modalAuthTitulo">Entrar no MatchUp</h2>
+                    <p id="modalAuthSubtitulo">Acesse sua conta para participar da comunidade.</p>
+                </div>
+
+                <button class="modal-close" onclick="fecharModalAuth()">×</button>
+            </div>
+
+            <div class="modal-content">
+                <div id="boxLogin" class="auth-box">
+                    <h3>Login</h3>
+
+                    <label>E-mail</label>
+                    <input id="authLoginEmail" placeholder="Digite seu e-mail">
+
+                    <label>Senha</label>
+                    <input id="authLoginSenha" type="password" placeholder="Digite sua senha">
+
+                    <div class="button-row">
+                        <button class="btn-primary" onclick="login()">Entrar</button>
+                        <button class="btn-secondary" onclick="mostrarCadastroAuth()">Criar conta</button>
+                    </div>
+                </div>
+
+                <div id="boxCadastro" class="auth-box hidden">
+                    <h3>Criar conta</h3>
+
+                    <div class="form-grid two">
+                        <div>
+                            <label>Nome completo</label>
+                            <input id="authNome" placeholder="Ex: João Silva">
+                        </div>
+
+                        <div>
+                            <label>E-mail</label>
+                            <input id="authEmail" placeholder="Ex: joao@email.com">
+                        </div>
+
+                        <div>
+                            <label>Senha</label>
+                            <input id="authSenha" type="password" placeholder="Mínimo 8 caracteres">
+                        </div>
+
+                        <div>
+                            <label>Data de nascimento</label>
+                            <input id="authDataNascimento" type="date">
+                        </div>
+
+                        <div>
+                            <label>Apelido</label>
+                            <input id="authApelido" placeholder="Nome público">
+                        </div>
+
+                        <div>
+                            <label>Foto de perfil</label>
+                            <input id="authFotoPerfil" placeholder="URL da imagem">
+                        </div>
+                    </div>
+
+                    <div class="button-row">
+                        <button class="btn-primary" onclick="cadastrarUsuario()">Criar usuário</button>
+                        <button class="btn-secondary" onclick="mostrarLoginAuth()">Já tenho conta</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="modalCriarAtividade" class="modal-overlay hidden">
