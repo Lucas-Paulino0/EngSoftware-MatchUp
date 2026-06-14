@@ -251,7 +251,10 @@ async function cadastrarAtividade() {
   document.getElementById("descricaoAtividade").value = "";
   document.getElementById("requisitosAtividade").value = "";
 
-  listarAtividades();
+  fecharModalCriarAtividade();
+
+  await listarAtividades();
+  await listarInscricoes(false);
 }
 
 async function listarAtividades() {
@@ -1325,6 +1328,27 @@ function denunciarUsuarioEmBreve(usuarioId) {
   }
 
   abrirModalDenuncia("Usuario", usuarioId);
+}
+
+function abrirModalCriarAtividade() {
+  if (!usuarioLogadoCache) {
+    alert("Você precisa estar logado para criar uma atividade.");
+    return;
+  }
+
+  const modal = document.getElementById("modalCriarAtividade");
+
+  if (modal) {
+    modal.classList.remove("hidden");
+  }
+}
+
+function fecharModalCriarAtividade() {
+  const modal = document.getElementById("modalCriarAtividade");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
 }
 
 window.onload = async function () {

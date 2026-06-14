@@ -21,7 +21,7 @@
 
             <nav class="nav-menu">
                 <a href="#feed" class="active">🏠 Início</a>
-                <a href="#criar-atividade">➕ Criar atividade</a>
+                <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()">➕ Criar atividade</a>
             </nav>
 
             <div class="mini-card">
@@ -124,64 +124,25 @@
                 </div>
 
                 <div class="welcome-actions">
-                    <a href="#criar-atividade" class="welcome-button primary-link">Criar atividade</a>
+                    <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()" class="welcome-button primary-link">
+                        Criar atividade
+                    </a>
                     <a href="#feed" class="welcome-button secondary-link">Ver feed</a>
                 </div>
             </section>
 
-            <!-- CRIAR ATIVIDADE -->
-            <section id="criar-atividade" class="composer-card">
-                <div class="composer-header">
-                    <div class="avatar activity-avatar">＋</div>
-                    <div>
-                        <h2>Publicar nova atividade</h2>
-                        <p>Crie uma atividade como se fosse uma publicação no feed.</p>
-                    </div>
+            <section id="criar-atividade" class="quick-composer">
+                <div class="quick-composer-left">
+                    <div class="quick-avatar">＋</div>
+
+                    <button class="quick-input" onclick="abrirModalCriarAtividade()">
+                        O que você quer organizar hoje?
+                    </button>
                 </div>
 
-                <div class="form-grid four">
-                    <div>
-                        <label>Título</label>
-                        <input id="tituloAtividade" placeholder="Ex: Futebol de sábado">
-                    </div>
-
-                    <div>
-                        <label>Categoria</label>
-                        <input id="categoriaAtividade" placeholder="Ex: Futebol">
-                    </div>
-
-                    <div>
-                        <label>Data</label>
-                        <input id="dataAtividade" type="date">
-                    </div>
-
-                    <div>
-                        <label>Horário</label>
-                        <input id="horarioAtividade" type="time">
-                    </div>
-
-                    <div>
-                        <label>Local</label>
-                        <input id="localAtividade" placeholder="Ex: Quadra central">
-                    </div>
-
-                    <div>
-                        <label>Limite de vagas</label>
-                        <input id="limiteVagas" type="number" placeholder="Ex: 10">
-                    </div>
-
-                    <div class="wide">
-                        <label>Descrição</label>
-                        <input id="descricaoAtividade" placeholder="Conte um pouco sobre a atividade...">
-                    </div>
-
-                    <div class="wide">
-                        <label>Requisitos</label>
-                        <input id="requisitosAtividade" placeholder="Ex: levar água, chegar 10 min antes...">
-                    </div>
-                </div>
-
-                <button class="btn-primary full" onclick="cadastrarAtividade()">Publicar atividade</button>
+                <button class="btn-primary" onclick="abrirModalCriarAtividade()">
+                    Criar atividade
+                </button>
             </section>
 
             <!-- FEED -->
@@ -241,6 +202,73 @@
                 </div>
             </div>
         </aside>
+    </div>
+
+    <div id="modalCriarAtividade" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h2>Criar nova atividade</h2>
+                    <p>Publique uma atividade para a comunidade participar.</p>
+                </div>
+
+                <button class="modal-close" onclick="fecharModalCriarAtividade()">×</button>
+            </div>
+
+            <div class="modal-content">
+                <div class="form-grid four">
+                    <div>
+                        <label>Título</label>
+                        <input id="tituloAtividade" placeholder="Ex: Futebol de sábado">
+                    </div>
+
+                    <div>
+                        <label>Categoria</label>
+                        <input id="categoriaAtividade" placeholder="Ex: Futebol">
+                    </div>
+
+                    <div>
+                        <label>Data</label>
+                        <input id="dataAtividade" type="date">
+                    </div>
+
+                    <div>
+                        <label>Horário</label>
+                        <input id="horarioAtividade" type="time">
+                    </div>
+
+                    <div>
+                        <label>Local</label>
+                        <input id="localAtividade" placeholder="Ex: Quadra central">
+                    </div>
+
+                    <div>
+                        <label>Limite de vagas</label>
+                        <input id="limiteVagas" type="number" placeholder="Ex: 10">
+                    </div>
+
+                    <div class="wide">
+                        <label>Descrição</label>
+                        <input id="descricaoAtividade" placeholder="Conte um pouco sobre a atividade...">
+                    </div>
+
+                    <div class="wide">
+                        <label>Requisitos</label>
+                        <input id="requisitosAtividade" placeholder="Ex: levar água, chegar 10 min antes...">
+                    </div>
+                </div>
+
+                <div class="button-row">
+                    <button class="btn-primary" onclick="cadastrarAtividade()">
+                        Publicar atividade
+                    </button>
+
+                    <button class="btn-secondary" onclick="fecharModalCriarAtividade()">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="modalDetalhesAtividade" class="modal-overlay hidden">
