@@ -260,6 +260,49 @@
         </div>
     </div>
 
+    <div id="modalDenuncia" class="modal-overlay hidden">
+        <div class="modal-card modal-small">
+            <div class="modal-header danger-header">
+                <div>
+                    <h2>Registrar denúncia</h2>
+                    <p id="modalDenunciaSubtitulo">Informe o motivo da denúncia</p>
+                </div>
+
+                <button class="modal-close" onclick="fecharModalDenuncia()">×</button>
+            </div>
+
+            <div class="modal-content">
+                <input type="hidden" id="denunciaTipoAlvo">
+                <input type="hidden" id="denunciaAlvoId">
+
+                <div class="modal-form">
+                    <label>Motivo</label>
+                    <select id="denunciaMotivo">
+                        <option value="">Selecione o motivo...</option>
+                        <option value="Comportamento inadequado">Comportamento inadequado</option>
+                        <option value="Linguagem ofensiva">Linguagem ofensiva</option>
+                        <option value="Atividade falsa ou enganosa">Atividade falsa ou enganosa</option>
+                        <option value="Assédio ou intimidação">Assédio ou intimidação</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+
+                    <label>Descrição</label>
+                    <textarea id="denunciaDescricao" rows="5" placeholder="Explique melhor o que aconteceu..."></textarea>
+
+                    <div class="button-row">
+                        <button class="btn-danger" onclick="enviarDenuncia()">
+                            Enviar denúncia
+                        </button>
+
+                        <button class="btn-secondary" onclick="fecharModalDenuncia()">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

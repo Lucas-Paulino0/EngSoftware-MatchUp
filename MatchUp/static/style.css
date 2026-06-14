@@ -1011,3 +1011,34 @@ tbody tr:hover {
     font-size: 11px;
     font-weight: 800;
 }
+
+.modal-small {
+    width: min(560px, 100%);
+}
+
+.danger-header {
+    background: linear-gradient(135deg, #dc2626, #991b1b);
+}
+
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 14px;
+    padding: 12px 13px;
+    outline: none;
+    font-size: 14px;
+    background: white;
+    resize: vertical;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+textarea:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}

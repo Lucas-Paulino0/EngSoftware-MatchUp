@@ -940,6 +940,130 @@ def encerrar_atividade(atividade_id):
         "mensagem": "Atividade encerrada com sucesso.",
         "atividade": resposta.data[0]
     }), 200
+    
+@app.route("/denuncias", methods=["POST"])
+def cadastrar_denuncia():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json()
+
+    tipo_alvo = dados.get("tipo_alvo")
+    alvo_id = dados.get("alvo_id")
+    motivo = dados.get("motivo")
+    descricao = dados.get("descricao")
+
+    if not tipo_alvo or not alvo_id or not motivo:
+        return jsonify({
+            "erro": "Tipo do alvo, alvo e motivo são obrigatórios."
+        }), 400
+
+    if tipo_alvo not in ["Usuario", "Atividade"]:
+        return jsonify({
+            "erro": "Tipo de alvo inválido."
+        }), 400
+
+    if tipo_alvo == "Usuario" and alvo_id == usuario["id"]:
+        return jsonify({
+            "erro": "Você não pode denunciar a si próprio."
+        }), 400
+
+    if tipo_alvo == "Usuario":
+        alvo_resposta = supabase.table("usuarios").select("id").eq("id", alvo_id).execute()
+    else:
+        alvo_resposta = supabase.table("atividades").select("id").eq("id", alvo_id).execute()
+
+    if not alvo_resposta.data:
+        return jsonify({
+            "erro": "Alvo da denúncia não encontrado."
+        }), 404
+
+    limite_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+    denuncia_existente = supabase.table("denuncias").select("id").eq(
+        "denunciante_id", usuario["id"]
+    ).eq(
+        "tipo_alvo", tipo_alvo
+    ).eq(
+        "alvo_id", alvo_id
+    ).gte(
+        "criado_em", limite_24h
+    ).execute()
+
+    if denuncia_existente.data:
+        return jsonify({
+            "erro": "Você já fez uma denúncia para este alvo nas últimas 24 horas."
+        }), 400
+
+    nova_denuncia = {
+        "denunciante_id": usuario["id"],
+        "tipo_alvo": tipo_alvo,
+        "alvo_id": alvo_id,
+        "motivo": motivo,
+        "descricao": descricao,
+        "status": "Pendente"
+    }
+
+    resposta = supabase.table("denuncias").insert(nova_denuncia).execute()
+
+    return jsonify({
+        "mensagem": "Denúncia registrada com sucesso.",
+        "denuncia": resposta.data[0]
+    }), 201
+
+
+@app.route("/minhas-denuncias", methods=["GET"])
+def minhas_denuncias():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("denuncias").select("*").eq(
+        "denunciante_id", usuario["id"]
+    ).order(
+        "criado_em", desc=True
+    ).execute()
+
+    return jsonify(resposta.data), 200
+
+
+@app.route("/denuncias/<denuncia_id>", methods=["DELETE"])
+def cancelar_denuncia(denuncia_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("denuncias").select("*").eq("id", denuncia_id).execute()
+
+    if not resposta.data:
+        return jsonify({
+            "erro": "Denúncia não encontrada."
+        }), 404
+
+    denuncia = resposta.data[0]
+
+    if denuncia["denunciante_id"] != usuario["id"]:
+        return jsonify({
+            "erro": "Você não tem permissão para cancelar esta denúncia."
+        }), 403
+
+    if denuncia["status"] != "Pendente":
+        return jsonify({
+            "erro": "Somente denúncias pendentes podem ser canceladas."
+        }), 400
+
+    atualizada = supabase.table("denuncias").update({
+        "status": "Arquivada"
+    }).eq("id", denuncia_id).execute()
+
+    return jsonify({
+        "mensagem": "Denúncia cancelada com sucesso.",
+        "denuncia": atualizada.data[0]
+    }), 200
 
 if __name__ == "__main__":
     app.run(debug=True)

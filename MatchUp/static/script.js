@@ -3,6 +3,9 @@ let atividadesCache = [];
 let inscricoesCache = [];
 let usuarioLogadoCache = null;
 
+let atividadeDetalhesAtual = null;
+let participantesDetalhesAtual = [];
+
 async function verificarSessao() {
   try {
     const resposta = await fetch(`${API_URL}/sessao`, {
@@ -751,34 +754,34 @@ async function listarInscricoes(renderizarTabela = true) {
 }
 
 async function cadastrarInscricao() {
-    const atividade_id = document.getElementById("i_titulo").value;
+  const atividade_id = document.getElementById("i_titulo").value;
 
-    if (!atividade_id) {
+  if (!atividade_id) {
     alert("Selecione uma atividade.");
     return;
-    }
+  }
 
-    const resposta = await fetch(`${API_URL}/inscricoes`, {
+  const resposta = await fetch(`${API_URL}/inscricoes`, {
     method: "POST",
     credentials: "include",
     headers: {
-        "Content-Type": "application/json",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-        atividade_id,
+      atividade_id,
     }),
-    });
+  });
 
-    const dados = await resposta.json();
+  const dados = await resposta.json();
 
-    if (!resposta.ok) {
+  if (!resposta.ok) {
     alert(dados.erro);
     return;
-    }
+  }
 
-    alert(dados.mensagem);
-    listarInscricoes();
-    listarAtividades();
+  alert(dados.mensagem);
+  listarInscricoes();
+  listarAtividades();
 }
 
 async function cancelarInscricao(id) {
@@ -941,6 +944,9 @@ async function abrirDetalhesAtividade(atividade_id) {
 
   const participantes = await resposta.json();
 
+  atividadeDetalhesAtual = atividade;
+  participantesDetalhesAtual = participantes;
+
   renderizarDetalhesAtividade(atividade, participantes);
 }
 
@@ -957,7 +963,9 @@ function renderizarDetalhesAtividade(atividade, participantes) {
     : "Organizador";
 
   const confirmados = participantes.filter((p) => p.status === "Confirmado");
-  const listaEspera = participantes.filter((p) => p.status === "Lista de Espera");
+  const listaEspera = participantes.filter(
+    (p) => p.status === "Lista de Espera",
+  );
 
   const organizadorCard = {
     usuario_id: atividade.organizador_id,
@@ -1004,7 +1012,7 @@ function renderizarDetalhesAtividade(atividade, participantes) {
                     : ""
                 }
 
-                <button class="btn-danger full" onclick="denunciarAtividadeEmBreve()">
+                <button class="btn-danger full" onclick="abrirModalDenuncia('Atividade', '${atividade.id}')">
                     Denunciar atividade
                 </button>
             </div>
@@ -1074,11 +1082,18 @@ function renderizarListaParticipantes(participantes, atividade) {
                     }
 
                     ${
-                      usuarioLogadoCache && participante.usuario_id !== usuarioLogadoCache.id
+                      usuarioLogadoCache &&
+                      participante.usuario_id !== usuarioLogadoCache.id
                         ? `
-                            <button class="btn-danger" onclick="denunciarUsuarioEmBreve()">
-                                Denunciar
-                            </button>
+                          ${
+                            usuarioLogadoCache && participante.usuario_id !== usuarioLogadoCache.id
+                              ? `
+                                  <button class="btn-danger" onclick="abrirModalDenuncia('Usuario', '${participante.usuario_id}')">
+                                      Denunciar
+                                  </button>
+                              `
+                              : ""
+                          }
                         `
                         : ""
                     }
@@ -1186,12 +1201,130 @@ async function enviarAvaliacaoInline(atividade_id, avaliado_id) {
   listarAvaliacao();
 }
 
-function denunciarAtividadeEmBreve() {
-  alert("O módulo de denúncias será implementado no próximo passo.");
+function obterNomeAlvoDenuncia(tipoAlvo, alvoId) {
+  if (tipoAlvo === "Atividade") {
+    return atividadeDetalhesAtual
+      ? atividadeDetalhesAtual.titulo
+      : "atividade selecionada";
+  }
+
+  const participante = participantesDetalhesAtual.find((p) => {
+    return p.usuario_id === alvoId;
+  });
+
+  if (participante && participante.usuarios) {
+    return participante.usuarios.apelido || participante.usuarios.nome;
+  }
+
+  if (
+    atividadeDetalhesAtual &&
+    atividadeDetalhesAtual.organizador_id === alvoId &&
+    atividadeDetalhesAtual.usuarios
+  ) {
+    return (
+      atividadeDetalhesAtual.usuarios.apelido ||
+      atividadeDetalhesAtual.usuarios.nome
+    );
+  }
+
+  return "usuário selecionado";
 }
 
-function denunciarUsuarioEmBreve() {
-  alert("O módulo de denúncias será implementado no próximo passo.");
+function abrirModalDenuncia(tipoAlvo, alvoId) {
+  if (!usuarioLogadoCache) {
+    alert("Você precisa estar logado para fazer uma denúncia.");
+    return;
+  }
+
+  if (tipoAlvo === "Usuario" && alvoId === usuarioLogadoCache.id) {
+    alert("Você não pode denunciar a si próprio.");
+    return;
+  }
+
+  const modal = document.getElementById("modalDenuncia");
+  const subtitulo = document.getElementById("modalDenunciaSubtitulo");
+
+  const tipoInput = document.getElementById("denunciaTipoAlvo");
+  const alvoInput = document.getElementById("denunciaAlvoId");
+  const motivoInput = document.getElementById("denunciaMotivo");
+  const descricaoInput = document.getElementById("denunciaDescricao");
+
+  const nomeAlvo = obterNomeAlvoDenuncia(tipoAlvo, alvoId);
+
+  tipoInput.value = tipoAlvo;
+  alvoInput.value = alvoId;
+  motivoInput.value = "";
+  descricaoInput.value = "";
+
+  subtitulo.textContent =
+    tipoAlvo === "Atividade"
+      ? `Você está denunciando a atividade: ${nomeAlvo}`
+      : `Você está denunciando o usuário: ${nomeAlvo}`;
+
+  modal.classList.remove("hidden");
+}
+
+function fecharModalDenuncia() {
+  const modal = document.getElementById("modalDenuncia");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+async function enviarDenuncia() {
+  const tipo_alvo = document.getElementById("denunciaTipoAlvo").value;
+  const alvo_id = document.getElementById("denunciaAlvoId").value;
+  const motivo = document.getElementById("denunciaMotivo").value;
+  const descricao = document.getElementById("denunciaDescricao").value;
+
+  if (!motivo) {
+    alert("Selecione um motivo para a denúncia.");
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/denuncias`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      tipo_alvo,
+      alvo_id,
+      motivo,
+      descricao,
+    }),
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    alert(dados.erro);
+    return;
+  }
+
+  alert(dados.mensagem);
+
+  fecharModalDenuncia();
+}
+
+function denunciarAtividadeEmBreve() {
+  if (!atividadeDetalhesAtual) {
+    alert("Abra os detalhes de uma atividade primeiro.");
+    return;
+  }
+
+  abrirModalDenuncia("Atividade", atividadeDetalhesAtual.id);
+}
+
+function denunciarUsuarioEmBreve(usuarioId) {
+  if (!usuarioId) {
+    alert("Usuário não encontrado para denúncia.");
+    return;
+  }
+
+  abrirModalDenuncia("Usuario", usuarioId);
 }
 
 window.onload = async function () {
