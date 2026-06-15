@@ -5,6 +5,19 @@ let usuarioLogadoCache = null;
 
 let atividadeDetalhesAtual = null;
 let participantesDetalhesAtual = [];
+let atividadeEmEdicaoId = null;
+let ultimoPerfilCarregado = null;
+
+const INTERESSES_PADRAO = [
+  "Futebol",
+  "Vôlei",
+  "Corrida",
+  "Jogos",
+  "Estudos",
+  "Academia",
+  "Eventos",
+  "Tecnologia",
+];
 
 async function verificarSessao() {
   try {
@@ -28,21 +41,27 @@ async function verificarSessao() {
     }
 
     if (dados.logado) {
+      const fotoSessao = dados.usuario.foto_perfil
+        ? `<img src="${escaparHTML(dados.usuario.foto_perfil)}" alt="Foto de perfil">`
+        : pegarInicial(dados.usuario.nome);
+
       areaSessao.innerHTML = `
           <div class="logged-user-mini">
-              <div class="logged-avatar">${pegarInicial(dados.usuario.nome)}</div>
+              <div class="logged-avatar logged-avatar-img">${fotoSessao}</div>
 
               <div>
-                  <strong>${dados.usuario.nome}</strong>
-                  <span>${dados.usuario.email}</span>
+                  <strong>${escaparHTML(dados.usuario.nome)}</strong>
+                  <span>${escaparHTML(dados.usuario.email)}</span>
               </div>
 
+              <button class="mini-profile-btn" onclick="abrirModalMeuPerfil()">Perfil</button>
               <button class="mini-logout-btn" onclick="logout()">Sair</button>
           </div>
       `;
 
       if (authCard) authCard.classList.add("hidden");
       if (welcomeCard) welcomeCard.classList.remove("hidden");
+      carregarRecomendacoes();
       if (welcomeTitle)
         welcomeTitle.textContent = `Bem-vindo, ${dados.usuario.nome}!`;
     } else {
@@ -50,6 +69,7 @@ async function verificarSessao() {
 
       if (authCard) authCard.classList.remove("hidden");
       if (welcomeCard) welcomeCard.classList.add("hidden");
+      renderizarRecomendacoes(null);
     }
 
     return dados;
@@ -68,13 +88,53 @@ async function cadastrarUsuario() {
   const nome = document.getElementById("authNome").value.trim();
   const email = document.getElementById("authEmail").value.trim();
   const senha = document.getElementById("authSenha").value.trim();
+  const confirmar_senha = document.getElementById("authConfirmarSenha")
+    ? document.getElementById("authConfirmarSenha").value.trim()
+    : senha;
   const data_nascimento =
     document.getElementById("authDataNascimento").value || null;
   const apelido = document.getElementById("authApelido").value.trim();
-  const foto_perfil = document.getElementById("authFotoPerfil").value.trim();
+  const fotoUrl = document.getElementById("authFotoPerfil")
+    ? document.getElementById("authFotoPerfil").value.trim()
+    : "";
+  const fotoArquivo = document.getElementById("authFotoArquivo")
+    ? document.getElementById("authFotoArquivo").files[0]
+    : null;
+  let foto_perfil = fotoUrl;
+
+  if (fotoArquivo) {
+    try {
+      foto_perfil = await lerArquivoComoDataURL(fotoArquivo);
+    } catch (erro) {
+      mostrarMensagem(erro.message || "Não foi possível carregar a foto.", "warning");
+      return;
+    }
+  }
+
+  const interesses = obterInteressesSelecionados("authInteresses");
 
   if (!nome || !email || !senha) {
-    alert("Preencha nome, e-mail e senha.");
+    mostrarMensagem("Preencha nome, e-mail e senha.", "warning");
+    return;
+  }
+
+  if (!emailValido(email)) {
+    mostrarMensagem("Informe um e-mail válido.", "warning");
+    return;
+  }
+
+  if (senha.length < 8) {
+    mostrarMensagem("A senha precisa ter no mínimo 8 caracteres.", "warning");
+    return;
+  }
+
+  if (senha !== confirmar_senha) {
+    mostrarMensagem("A confirmação de senha não confere.", "warning");
+    return;
+  }
+
+  if (data_nascimento && !idadeMinimaValida(data_nascimento, 13)) {
+    mostrarMensagem("A data de nascimento é inválida ou indica idade menor que 13 anos.", "warning");
     return;
   }
 
@@ -88,9 +148,11 @@ async function cadastrarUsuario() {
       nome,
       email,
       senha,
+      confirmar_senha,
       data_nascimento,
       apelido,
       foto_perfil,
+      interesses,
     }),
   });
 
@@ -106,9 +168,16 @@ async function cadastrarUsuario() {
   document.getElementById("authNome").value = "";
   document.getElementById("authEmail").value = "";
   document.getElementById("authSenha").value = "";
+  if (document.getElementById("authConfirmarSenha")) {
+    document.getElementById("authConfirmarSenha").value = "";
+  }
   document.getElementById("authDataNascimento").value = "";
   document.getElementById("authApelido").value = "";
   document.getElementById("authFotoPerfil").value = "";
+  if (document.getElementById("authFotoArquivo")) {
+    document.getElementById("authFotoArquivo").value = "";
+  }
+  limparInteressesSelecionados("authInteresses");
 
   mostrarLoginAuth();
 
@@ -120,7 +189,12 @@ async function login() {
   const senha = document.getElementById("authLoginSenha").value.trim();
 
   if (!email || !senha) {
-    alert("Preencha e-mail e senha.");
+    mostrarMensagem("Preencha e-mail e senha.", "warning");
+    return;
+  }
+
+  if (!emailValido(email)) {
+    mostrarMensagem("Informe um e-mail válido.", "warning");
     return;
   }
 
@@ -222,56 +296,127 @@ function atualizarDropdownsUsuarios(usuarios) {
 }
 
 async function cadastrarAtividade() {
-  const titulo = document.getElementById("tituloAtividade").value;
-  const categoria = document.getElementById("categoriaAtividade").value;
+  const camposObrigatorios = [
+    { id: "tituloAtividade", nome: "título" },
+    { id: "categoriaAtividade", nome: "categoria" },
+    { id: "dataAtividade", nome: "data" },
+    { id: "horarioAtividade", nome: "horário" },
+    { id: "localAtividade", nome: "local" },
+    { id: "limiteVagas", nome: "limite de vagas" },
+  ];
+
+  const camposNaoEncontrados = camposObrigatorios
+    .filter((campo) => !document.getElementById(campo.id))
+    .map((campo) => campo.id);
+
+  if (camposNaoEncontrados.length > 0) {
+    mostrarMensagem(
+      `Erro no HTML: os campos ${camposNaoEncontrados.join(", ")} não foram encontrados.`,
+      "warning",
+    );
+    return;
+  }
+
+  const titulo = document.getElementById("tituloAtividade").value.trim();
+  const categoria = document.getElementById("categoriaAtividade").value.trim();
   const data = document.getElementById("dataAtividade").value;
   const horario = document.getElementById("horarioAtividade").value;
-  const local = document.getElementById("localAtividade").value;
+  const local = document.getElementById("localAtividade").value.trim();
   const limite_vagas = document.getElementById("limiteVagas").value;
-  const descricao = document.getElementById("descricaoAtividade").value;
-  const requisitos = document.getElementById("requisitosAtividade").value;
+  const descricao = document.getElementById("descricaoAtividade").value.trim();
+  const requisitos = document.getElementById("requisitosAtividade").value.trim();
+  const endereco = obterValorCampo("enderecoAtividade");
+  const cidade = obterValorCampo("cidadeAtividade");
+  const bairro = obterValorCampo("bairroAtividade");
+  const link_mapa = obterValorCampo("linkMapaAtividade");
+  const nivel = obterValorCampo("nivelAtividade");
+  const visibilidade = obterValorCampo("visibilidadeAtividade") || "Pública";
 
-  const resposta = await fetch(`${API_URL}/atividades`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
+  const camposFaltando = [];
+  if (!titulo) camposFaltando.push("título");
+  if (!categoria) camposFaltando.push("categoria");
+  if (!data) camposFaltando.push("data");
+  if (!horario) camposFaltando.push("horário");
+  if (!local) camposFaltando.push("local");
+  if (!limite_vagas) camposFaltando.push("limite de vagas");
+
+  if (camposFaltando.length > 0) {
+    mostrarMensagem(
+      `Preencha os seguintes campos: ${camposFaltando.join(", ")}.`,
+      "warning",
+    );
+    return;
+  }
+
+  if (Number(limite_vagas) <= 0) {
+    mostrarMensagem("O limite de vagas deve ser maior que zero.", "warning");
+    return;
+  }
+
+  const dataHora = new Date(`${data}T${horario}`);
+  if (Number.isNaN(dataHora.getTime()) || dataHora <= new Date()) {
+    mostrarMensagem("A atividade precisa ter data e horário futuros.", "warning");
+    return;
+  }
+
+  const editando = Boolean(atividadeEmEdicaoId);
+  const mensagemConfirmacao = editando
+    ? `Salvar alterações da atividade "${titulo}"?`
+    : `Publicar a atividade "${titulo}" para a comunidade?`;
+
+  if (!confirm(mensagemConfirmacao)) {
+    return;
+  }
+
+  const resposta = await fetch(
+    editando ? `${API_URL}/atividades/${atividadeEmEdicaoId}` : `${API_URL}/atividades`,
+    {
+      method: editando ? "PUT" : "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        titulo,
+        categoria,
+        data,
+        horario,
+        local,
+        limite_vagas,
+        descricao,
+        requisitos,
+        endereco,
+        cidade,
+        bairro,
+        link_mapa,
+        nivel,
+        visibilidade,
+      }),
     },
-    body: JSON.stringify({
-      titulo,
-      categoria,
-      data,
-      horario,
-      local,
-      limite_vagas,
-      descricao,
-      requisitos,
-    }),
-  });
+  );
 
   const dados = await resposta.json();
 
   if (!resposta.ok) {
-    alert(dados.erro);
+    mostrarMensagem(dados.erro || "Erro ao salvar atividade.", "warning");
     return;
   }
 
-  alert(dados.mensagem);
+  mostrarMensagem(dados.mensagem || "Atividade salva com sucesso.", "success");
 
-  document.getElementById("tituloAtividade").value = "";
-  document.getElementById("categoriaAtividade").value = "";
-  document.getElementById("dataAtividade").value = "";
-  document.getElementById("horarioAtividade").value = "";
-  document.getElementById("localAtividade").value = "";
-  document.getElementById("limiteVagas").value = "";
-  document.getElementById("descricaoAtividade").value = "";
-  document.getElementById("requisitosAtividade").value = "";
-
+  limparFormularioAtividade();
   fecharModalCriarAtividade();
 
   await listarAtividades();
   await listarInscricoes(false);
+
+  if (atividadeDetalhesAtual && atividadeDetalhesAtual.id === atividadeEmEdicaoId) {
+    fecharDetalhesAtividade();
+  }
+
+  atividadeEmEdicaoId = null;
 }
+
 
 async function listarAtividades() {
   const resposta = await fetch(`${API_URL}/atividades`, {
@@ -302,13 +447,17 @@ async function listarAtividades() {
 
   await listarInscricoes(false);
 
-  renderizarFeedAtividades(atividades);
   atualizarDropdownsAtividades(atividades);
+  atualizarFiltroCategorias(atividades);
+  atualizarCategoriasPopularesDinamicas(atividades);
+  filtrarFeed();
 
   const statAtividades = document.getElementById("statAtividades");
   if (statAtividades) {
     statAtividades.textContent = atividades.length;
   }
+
+  carregarRecomendacoes();
 }
 
 function renderizarFeedAtividades(atividades) {
@@ -319,11 +468,18 @@ function renderizarFeedAtividades(atividades) {
   feed.innerHTML = "";
 
   if (!atividades || atividades.length === 0) {
+    const existemAtividades = atividadesCache && atividadesCache.length > 0;
+
     feed.innerHTML = `
-            <div class="empty-state">
-                Nenhuma atividade publicada ainda. Seja o primeiro a criar uma!
-            </div>
-        `;
+      <div class="empty-state empty-state-action">
+        <strong>${existemAtividades ? "Nenhuma atividade encontrada com esses filtros." : "Nenhuma atividade publicada ainda."}</strong>
+        <p>${existemAtividades ? "Tente limpar os filtros ou usar outros termos de busca." : "Seja o primeiro a criar uma atividade para a comunidade."}</p>
+        <div class="empty-actions">
+          ${existemAtividades ? `<button class="btn-secondary" onclick="limparFiltrosFeed()">Limpar filtros</button>` : ""}
+          <button class="btn-primary" onclick="abrirModalCriarAtividade()">Criar atividade</button>
+        </div>
+      </div>
+    `;
     return;
   }
 
@@ -332,31 +488,16 @@ function renderizarFeedAtividades(atividades) {
       ? atividade.usuarios.apelido || atividade.usuarios.nome
       : "Organizador";
 
-    const inicial = organizador.charAt(0).toUpperCase();
-
-    const descricao = atividade.descricao
-      ? atividade.descricao
-      : "Sem descrição informada.";
-
-    const requisitos = atividade.requisitos
-      ? atividade.requisitos
-      : "Nenhum requisito informado.";
-
+    const inicial = pegarInicial(organizador);
+    const descricao = atividade.descricao || "Sem descrição informada.";
+    const requisitos = atividade.requisitos || "Nenhum requisito informado.";
     const statusClass = `status-${atividade.status}`;
-
-    const inscricoesDaAtividade = inscricoesCache.filter((i) => {
-      return i.atividade_id === atividade.id;
-    });
-
-    const confirmadosInscritos = inscricoesDaAtividade.filter(
-      (i) => i.status === "Confirmado",
-    ).length;
-
-    // O organizador também conta como jogador
-    const confirmados = confirmadosInscritos + 1;
+    const inscricoesDaAtividade = obterInscricoesDaAtividade(atividade.id);
+    const confirmados = contarConfirmadosAtividade(atividade);
     const listaEspera = inscricoesDaAtividade.filter(
       (i) => i.status === "Lista de Espera",
     ).length;
+    const vagasRestantes = Math.max(Number(atividade.limite_vagas || 0) - confirmados, 0);
 
     const minhaInscricao = usuarioLogadoCache
       ? inscricoesDaAtividade.find(
@@ -371,139 +512,164 @@ function renderizarFeedAtividades(atividades) {
 
     if (!usuarioLogadoCache) {
       botaoParticipacao = `
-            <button class="btn-disabled" disabled>
-                Faça login para participar
-            </button>
-        `;
+        <button class="btn-disabled" disabled>
+          Faça login para participar
+        </button>
+      `;
     } else if (souOrganizador) {
       botaoParticipacao = `
-            <button class="btn-disabled" disabled>
-                Você é o organizador
-            </button>
-        `;
+        <button class="btn-disabled" disabled>
+          Você é o organizador
+        </button>
+      `;
     } else if (minhaInscricao) {
-      const textoStatus =
-        minhaInscricao.status === "Confirmado"
-          ? "Inscrito"
-          : `Lista de espera #${minhaInscricao.posicao_espera}`;
+      const textoStatus = formatarStatusInscricao(minhaInscricao);
 
       botaoParticipacao = `
-            <button class="btn-disabled" disabled>
-                ${textoStatus}
-            </button>
+        <button class="btn-disabled" disabled>
+          ${textoStatus}
+        </button>
 
-            <button class="btn-danger" onclick="sairDaAtividade('${atividade.id}')">
-                Sair da atividade
-            </button>
-        `;
+        <button class="btn-danger" onclick="sairDaAtividade('${atividade.id}')">
+          Sair da atividade
+        </button>
+      `;
     } else if (atividade.status !== "Aberta") {
       botaoParticipacao = `
-            <button class="btn-disabled" disabled>
-                Indisponível
-            </button>
-        `;
+        <button class="btn-disabled" disabled>
+          Indisponível
+        </button>
+      `;
     } else {
       botaoParticipacao = `
-            <button class="btn-primary" onclick="participarPeloFeed('${atividade.id}')">
-                Participar
-            </button>
-        `;
-    }
-
-    if (!usuarioLogadoCache) {
-      textoBotaoParticipar = "Faça login para participar";
-      classeBotaoParticipar = "btn-disabled";
-      disabledParticipar = "disabled";
-    } else if (souOrganizador) {
-      textoBotaoParticipar = "Você é o organizador";
-      classeBotaoParticipar = "btn-disabled";
-      disabledParticipar = "disabled";
-    } else if (minhaInscricao) {
-      textoBotaoParticipar =
-        minhaInscricao.status === "Confirmado"
-          ? "Inscrito"
-          : `Na lista de espera #${minhaInscricao.posicao_espera}`;
-
-      classeBotaoParticipar = "btn-disabled";
-      disabledParticipar = "disabled";
-    } else if (atividade.status !== "Aberta") {
-      textoBotaoParticipar = "Indisponível";
-      classeBotaoParticipar = "btn-disabled";
-      disabledParticipar = "disabled";
+        <button class="btn-primary" onclick="participarPeloFeed('${atividade.id}')">
+          ${vagasRestantes > 0 ? "Participar" : "Entrar na lista de espera"}
+        </button>
+      `;
     }
 
     let botoesOrganizador = "";
 
     if (souOrganizador && atividade.status === "Aberta") {
       botoesOrganizador = `
-                <button class="btn-acao" onclick="encerrarAtividade('${atividade.id}')">
-                    Encerrar
-                </button>
+        <button class="btn-secondary" onclick="abrirModalEditarAtividade('${atividade.id}')">
+          Editar
+        </button>
 
-                <button class="btn-del" onclick="cancelarAtividade('${atividade.id}')">
-                    Cancelar
-                </button>
-            `;
+        <button class="btn-acao" onclick="encerrarAtividade('${atividade.id}')">
+          Encerrar
+        </button>
+
+        <button class="btn-del" onclick="cancelarAtividade('${atividade.id}')">
+          Cancelar
+        </button>
+      `;
     }
+
+    const meuStatus = minhaInscricao
+      ? `<span class="personal-status">${formatarStatusInscricao(minhaInscricao)}</span>`
+      : "";
+
+    const infoLocalComplementar = montarInfoLocalAtividade(atividade);
+    const linkMapa = obterLinkMapaAtividade(atividade);
 
     const card = document.createElement("article");
     card.className = "activity-post";
 
     card.innerHTML = `
-            <div class="post-header">
-                <div class="organizer clickable-user" onclick="abrirPerfilUsuario('${atividade.organizador_id}')">
-                    <div class="organizer-avatar">${inicial}</div>
-                    <div>
-                        <strong>${organizador}</strong>
-                        <span>publicou uma nova atividade</span>
-                    </div>
-                </div>
+      <div class="post-header">
+        <div class="organizer clickable-user" onclick="abrirPerfilUsuario('${atividade.organizador_id}')">
+          <div class="organizer-avatar">${inicial}</div>
+          <div>
+            <strong>${escaparHTML(organizador)}</strong>
+            <span>publicou uma nova atividade</span>
+          </div>
+        </div>
 
-                <span class="status-badge ${statusClass}">
-                    ${atividade.status}
-                </span>
-            </div>
+        <div class="badge-stack">
+          ${meuStatus}
+          <span class="status-badge ${statusClass}">
+            ${escaparHTML(atividade.status)}
+          </span>
+        </div>
+      </div>
 
-            <div class="post-body">
-                <h3>${atividade.titulo}</h3>
-                <p class="post-description">${descricao}</p>
+      <div class="post-body">
+        <div class="activity-title-row">
+          <h3>${escaparHTML(atividade.titulo)}</h3>
+          <span class="category-pill">${escaparHTML(atividade.categoria)}</span>
+        </div>
 
-                <div class="capacity-box">
-                    <div class="capacity-header">
-                        <span>Participantes confirmados</span>
-                        <strong>${confirmados}/${atividade.limite_vagas}</strong>
-                    </div>
+        <p class="post-description">${escaparHTML(descricao)}</p>
 
-                    <div class="capacity-bar">
-                        <div class="capacity-fill" style="width: ${calcularPorcentagemVagas(confirmados, atividade.limite_vagas)}%;"></div>
-                    </div>
+        <div class="capacity-box">
+          <div class="capacity-header">
+            <span>Participantes confirmados</span>
+            <strong>${confirmados}/${atividade.limite_vagas}</strong>
+          </div>
 
-                    <small>${listaEspera} pessoa(s) na lista de espera</small>
-                </div>
+          <div class="capacity-bar">
+            <div class="capacity-fill" style="width: ${calcularPorcentagemVagas(confirmados, atividade.limite_vagas)}%;"></div>
+          </div>
 
-                <div class="post-meta">
-                    <div class="meta-item">🏷️ Categoria: <strong>${atividade.categoria}</strong></div>
-                    <div class="meta-item">📍 Local: <strong>${atividade.local}</strong></div>
-                    <div class="meta-item">📅 Data: <strong>${formatarData(atividade.data)}</strong></div>
-                    <div class="meta-item">🕒 Horário: <strong>${formatarHorario(atividade.horario)}</strong></div>
-                    <div class="meta-item">📌 Requisitos: <strong>${requisitos}</strong></div>
-                    <div class="meta-item">👥 Lista de espera: <strong>${listaEspera}</strong></div>
-                </div>
-            </div>
+          <small>${vagasRestantes > 0 ? `${vagasRestantes} vaga(s) disponível(is)` : "Sem vagas diretas"} • ${listaEspera} pessoa(s) na lista de espera</small>
+        </div>
 
-            <div class="post-actions">
-                <button class="btn-secondary" onclick="abrirDetalhesAtividade('${atividade.id}')">
-                    Ver detalhes
-                </button>
+        <div class="post-meta">
+          <div class="meta-item">🏷️ Categoria: <strong>${escaparHTML(atividade.categoria)}</strong></div>
+          <div class="meta-item">📍 Local: <strong>${escaparHTML(atividade.local)}</strong>${infoLocalComplementar}</div>
+          <div class="meta-item">📅 Data: <strong>${formatarData(atividade.data)}</strong></div>
+          <div class="meta-item">🕒 Horário: <strong>${formatarHorario(atividade.horario)}</strong></div>
+          <div class="meta-item">📌 Requisitos: <strong>${escaparHTML(requisitos)}</strong></div>
+          <div class="meta-item">🎚️ Nível: <strong>${escaparHTML(atividade.nivel || "Livre")}</strong></div>
+          <div class="meta-item">👥 Lista de espera: <strong>${listaEspera}</strong></div>
+          <div class="meta-item">🗺️ Mapa: <strong>${linkMapa ? `<a href="${escaparHTML(linkMapa)}" target="_blank" rel="noopener">Abrir localização</a>` : "Não informado"}</strong></div>
+        </div>
+      </div>
 
-                ${botaoParticipacao}
+      <div class="post-actions">
+        <button class="btn-secondary" onclick="abrirDetalhesAtividade('${atividade.id}')">
+          Ver detalhes
+        </button>
 
-                ${botoesOrganizador}
-            </div>
-        `;
+        ${botaoParticipacao}
+
+        ${botoesOrganizador}
+      </div>
+    `;
 
     feed.appendChild(card);
   });
+}
+
+function obterInscricoesDaAtividade(atividadeId) {
+  return inscricoesCache.filter((i) => i.atividade_id === atividadeId);
+}
+
+function contarConfirmadosAtividade(atividade) {
+  const confirmadosInscritos = obterInscricoesDaAtividade(atividade.id).filter(
+    (i) => i.status === "Confirmado",
+  ).length;
+
+  return confirmadosInscritos + 1;
+}
+
+function atividadeTemVagas(atividade) {
+  return atividade.status === "Aberta" && contarConfirmadosAtividade(atividade) < Number(atividade.limite_vagas || 0);
+}
+
+function formatarStatusInscricao(inscricao) {
+  if (!inscricao) return "";
+
+  if (inscricao.status === "Lista de Espera") {
+    return `Lista de espera #${inscricao.posicao_espera}`;
+  }
+
+  if (inscricao.status === "Confirmado") {
+    return "Inscrito";
+  }
+
+  return inscricao.status;
 }
 
 function formatarData(data) {
@@ -538,6 +704,197 @@ function pegarInicial(nome) {
   return nome.charAt(0).toUpperCase();
 }
 
+function emailValido(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function idadeMinimaValida(dataNascimento, idadeMinima) {
+  const nascimento = new Date(`${dataNascimento}T00:00:00`);
+
+  if (Number.isNaN(nascimento.getTime())) {
+    return false;
+  }
+
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nascimento.getFullYear();
+  const mes = hoje.getMonth() - nascimento.getMonth();
+
+  if (mes < 0 || (mes === 0 && hoje.getDate() < nascimento.getDate())) {
+    idade -= 1;
+  }
+
+  return idade >= idadeMinima;
+}
+
+function normalizarTexto(valor) {
+  return (valor || "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function obterValorCampo(id) {
+  const elemento = document.getElementById(id);
+  return elemento ? elemento.value.trim() : "";
+}
+
+function definirValorCampo(id, valor) {
+  const elemento = document.getElementById(id);
+  if (elemento) elemento.value = valor || "";
+}
+
+function obterInteressesSelecionados(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+
+  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(
+    (input) => input.value,
+  );
+}
+
+function limparInteressesSelecionados(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.checked = false;
+  });
+}
+
+function marcarInteressesSelecionados(containerId, interesses = []) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const normalizados = interesses.map((item) => normalizarTexto(item));
+
+  container.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.checked = normalizados.includes(normalizarTexto(input.value));
+  });
+}
+
+function renderizarCheckboxesInteresses(containerId, selecionados = []) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const selecionadosNormalizados = selecionados.map((item) => normalizarTexto(item));
+
+  container.innerHTML = INTERESSES_PADRAO.map((interesse) => {
+    const checked = selecionadosNormalizados.includes(normalizarTexto(interesse))
+      ? "checked"
+      : "";
+
+    return `
+      <label class="interest-chip">
+        <input type="checkbox" value="${escaparHTML(interesse)}" ${checked}>
+        <span>${escaparHTML(interesse)}</span>
+      </label>
+    `;
+  }).join("");
+}
+
+function lerArquivoComoDataURL(arquivo) {
+  return new Promise((resolve, reject) => {
+    if (!arquivo) {
+      resolve("");
+      return;
+    }
+
+    if (!arquivo.type.startsWith("image/")) {
+      reject(new Error("Selecione um arquivo de imagem."));
+      return;
+    }
+
+    if (arquivo.size > 1024 * 1024) {
+      reject(new Error("A imagem deve ter no máximo 1 MB."));
+      return;
+    }
+
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(leitor.result);
+    leitor.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+function limparFormularioAtividade() {
+  [
+    "tituloAtividade",
+    "categoriaAtividade",
+    "dataAtividade",
+    "horarioAtividade",
+    "localAtividade",
+    "limiteVagas",
+    "descricaoAtividade",
+    "requisitosAtividade",
+    "enderecoAtividade",
+    "cidadeAtividade",
+    "bairroAtividade",
+    "linkMapaAtividade",
+    "nivelAtividade",
+    "visibilidadeAtividade",
+  ].forEach((id) => definirValorCampo(id, ""));
+
+  definirValorCampo("visibilidadeAtividade", "Pública");
+}
+
+function preencherFormularioAtividade(atividade) {
+  definirValorCampo("tituloAtividade", atividade.titulo);
+  definirValorCampo("categoriaAtividade", atividade.categoria);
+  definirValorCampo("dataAtividade", atividade.data);
+  definirValorCampo("horarioAtividade", formatarHorario(atividade.horario));
+  definirValorCampo("localAtividade", atividade.local);
+  definirValorCampo("limiteVagas", atividade.limite_vagas);
+  definirValorCampo("descricaoAtividade", atividade.descricao);
+  definirValorCampo("requisitosAtividade", atividade.requisitos);
+  definirValorCampo("enderecoAtividade", atividade.endereco);
+  definirValorCampo("cidadeAtividade", atividade.cidade);
+  definirValorCampo("bairroAtividade", atividade.bairro);
+  definirValorCampo("linkMapaAtividade", atividade.link_mapa);
+  definirValorCampo("nivelAtividade", atividade.nivel);
+  definirValorCampo("visibilidadeAtividade", atividade.visibilidade || "Pública");
+}
+
+function configurarModalAtividade(modo) {
+  const titulo = document.getElementById("modalCriarAtividadeTitulo");
+  const subtitulo = document.getElementById("modalCriarAtividadeSubtitulo");
+  const botao = document.getElementById("btnSalvarAtividade");
+
+  if (modo === "editar") {
+    if (titulo) titulo.textContent = "Editar atividade";
+    if (subtitulo) subtitulo.textContent = "Atualize as informações da atividade publicada.";
+    if (botao) botao.textContent = "Salvar alterações";
+  } else {
+    if (titulo) titulo.textContent = "Criar nova atividade";
+    if (subtitulo) subtitulo.textContent = "Publique uma atividade para a comunidade participar.";
+    if (botao) botao.textContent = "Publicar atividade";
+  }
+}
+
+function obterLinkMapaAtividade(atividade) {
+  if (atividade.link_mapa || atividade.link_mapa_calculado) {
+    return atividade.link_mapa || atividade.link_mapa_calculado;
+  }
+
+  const partes = [atividade.endereco, atividade.local, atividade.bairro, atividade.cidade]
+    .filter(Boolean)
+    .join(", ");
+
+  if (!partes) return "";
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partes)}`;
+}
+
+function montarInfoLocalAtividade(atividade) {
+  const partes = [atividade.endereco, atividade.bairro, atividade.cidade].filter(Boolean);
+
+  if (partes.length === 0) return "";
+
+  return `<br><small>${escaparHTML(partes.join(" • "))}</small>`;
+}
+
+
 async function participarPeloFeed(atividade_id) {
   const resposta = await fetch(`${API_URL}/inscricoes`, {
     method: "POST",
@@ -563,24 +920,134 @@ async function participarPeloFeed(atividade_id) {
   listarAtividades();
 }
 
-function filtrarFeed() {
-  const termo = document.getElementById("campoBusca").value.toLowerCase();
+function obterValorFiltro(id) {
+  const elemento = document.getElementById(id);
+  return elemento ? elemento.value : "";
+}
 
-  const filtradas = atividadesCache.filter((atividade) => {
-    const titulo = atividade.titulo ? atividade.titulo.toLowerCase() : "";
-    const categoria = atividade.categoria
-      ? atividade.categoria.toLowerCase()
-      : "";
-    const local = atividade.local ? atividade.local.toLowerCase() : "";
+function ordenarAtividades(atividades, ordenacao) {
+  const ordenadas = [...atividades];
 
-    return (
-      titulo.includes(termo) ||
-      categoria.includes(termo) ||
-      local.includes(termo)
-    );
+  ordenadas.sort((a, b) => {
+    if (ordenacao === "data_proxima") {
+      return new Date(`${a.data}T${a.horario || "00:00"}`) - new Date(`${b.data}T${b.horario || "00:00"}`);
+    }
+
+    if (ordenacao === "data_distante") {
+      return new Date(`${b.data}T${b.horario || "00:00"}`) - new Date(`${a.data}T${a.horario || "00:00"}`);
+    }
+
+    if (ordenacao === "mais_vagas") {
+      const vagasA = Number(a.limite_vagas || 0) - contarConfirmadosAtividade(a);
+      const vagasB = Number(b.limite_vagas || 0) - contarConfirmadosAtividade(b);
+      return vagasB - vagasA;
+    }
+
+    return new Date(b.criado_em || b.data) - new Date(a.criado_em || a.data);
   });
 
-  renderizarFeedAtividades(filtradas);
+  return ordenadas;
+}
+
+function filtrarFeed() {
+  const termo = normalizarTexto(obterValorFiltro("campoBusca"));
+  const categoriaFiltro = normalizarTexto(obterValorFiltro("filtroCategoria"));
+  const dataFiltro = obterValorFiltro("filtroData");
+  const statusFiltro = obterValorFiltro("filtroStatus");
+  const somenteComVagas = document.getElementById("filtroVagas")
+    ? document.getElementById("filtroVagas").checked
+    : false;
+  const ordenacao = obterValorFiltro("filtroOrdenacao") || "recentes";
+
+  const filtradas = atividadesCache.filter((atividade) => {
+    const textoAtividade = normalizarTexto(
+      `${atividade.titulo || ""} ${atividade.categoria || ""} ${atividade.local || ""} ${atividade.descricao || ""} ${atividade.requisitos || ""}`,
+    );
+
+    const bateTermo = !termo || textoAtividade.includes(termo);
+    const bateCategoria =
+      !categoriaFiltro || normalizarTexto(atividade.categoria) === categoriaFiltro;
+    const bateData = !dataFiltro || atividade.data === dataFiltro;
+    const bateStatus = !statusFiltro || atividade.status === statusFiltro;
+    const bateVagas = !somenteComVagas || atividadeTemVagas(atividade);
+
+    return bateTermo && bateCategoria && bateData && bateStatus && bateVagas;
+  });
+
+  renderizarFeedAtividades(ordenarAtividades(filtradas, ordenacao));
+}
+
+function limparFiltrosFeed() {
+  const ids = ["campoBusca", "filtroCategoria", "filtroData", "filtroStatus", "filtroOrdenacao"];
+
+  ids.forEach((id) => {
+    const elemento = document.getElementById(id);
+    if (!elemento) return;
+
+    if (id === "filtroOrdenacao") {
+      elemento.value = "recentes";
+    } else {
+      elemento.value = "";
+    }
+  });
+
+  const filtroVagas = document.getElementById("filtroVagas");
+  if (filtroVagas) filtroVagas.checked = false;
+
+  filtrarFeed();
+}
+
+function atualizarFiltroCategorias(atividades) {
+  const select = document.getElementById("filtroCategoria");
+
+  if (!select) return;
+
+  const selecionada = select.value;
+  const categorias = [...new Set(
+    atividades
+      .map((atividade) => atividade.categoria)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "pt-BR")),
+  )];
+
+  select.innerHTML = `<option value="">Todas as categorias</option>`;
+
+  categorias.forEach((categoria) => {
+    select.innerHTML += `<option value="${escaparHTML(categoria)}">${escaparHTML(categoria)}</option>`;
+  });
+
+  select.value = selecionada;
+}
+
+function atualizarCategoriasPopularesDinamicas(atividades) {
+  const area = document.getElementById("categoriasPopulares");
+
+  if (!area) return;
+
+  const contagem = {};
+
+  atividades.forEach((atividade) => {
+    if (!atividade.categoria) return;
+    contagem[atividade.categoria] = (contagem[atividade.categoria] || 0) + 1;
+  });
+
+  const populares = Object.entries(contagem)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  if (populares.length === 0) {
+    area.innerHTML = `
+      <span>Futebol</span>
+      <span>Vôlei</span>
+      <span>Corrida</span>
+      <span>Jogos</span>
+    `;
+    return;
+  }
+
+  area.innerHTML = populares
+    .map(([categoria, total]) => `<span>${escaparHTML(categoria)} (${total})</span>`)
+    .join("");
 }
 
 function atualizarDropdownsAtividades(atividades) {
@@ -1019,11 +1486,60 @@ function renderizarDetalhesAtividade(atividade, participantes) {
   const usuarioPodeVerChat =
     usuarioLogadoCache && (souOrganizador || usuarioEhParticipanteConfirmado);
 
+  const minhaInscricaoDetalhes = usuarioLogadoCache
+    ? participantes.find((p) => p.usuario_id === usuarioLogadoCache.id)
+    : null;
+
+  let botaoParticipacaoDetalhes = "";
+
+  if (!usuarioLogadoCache) {
+    botaoParticipacaoDetalhes = `
+      <button class="btn-disabled full" disabled>
+        Faça login para participar
+      </button>
+    `;
+  } else if (souOrganizador) {
+    botaoParticipacaoDetalhes = `
+      <button class="btn-disabled full" disabled>
+        Você é o organizador
+      </button>
+    `;
+  } else if (minhaInscricaoDetalhes) {
+    botaoParticipacaoDetalhes = `
+      <button class="btn-disabled full" disabled>
+        ${formatarStatusInscricao(minhaInscricaoDetalhes)}
+      </button>
+
+      <button class="btn-danger full" onclick="sairDaAtividade('${atividade.id}')">
+        Sair da atividade
+      </button>
+    `;
+  } else if (atividade.status !== "Aberta") {
+    botaoParticipacaoDetalhes = `
+      <button class="btn-disabled full" disabled>
+        Atividade indisponível
+      </button>
+    `;
+  } else {
+    botaoParticipacaoDetalhes = `
+      <button class="btn-primary full" onclick="participarPeloFeed('${atividade.id}')">
+        ${atividadeTemVagas(atividade) ? "Participar" : "Entrar na lista de espera"}
+      </button>
+    `;
+  }
+
   const organizadorCard = {
     usuario_id: atividade.organizador_id,
     status: "Organizador",
+    compareceu: true,
     usuarios: atividade.usuarios,
   };
+
+  const linkMapa = obterLinkMapaAtividade(atividade);
+  const presencasConfirmadas = confirmados.filter((p) => p.compareceu === true).length;
+  const presencasPendentes = atividade.status === "Encerrada"
+    ? confirmados.filter((p) => p.compareceu === null || typeof p.compareceu === "undefined").length
+    : 0;
 
   conteudo.innerHTML = `
         <div class="activity-detail-grid">
@@ -1032,24 +1548,32 @@ function renderizarDetalhesAtividade(atividade, participantes) {
 
                 <p><strong>Organizador:</strong> ${organizador}</p>
                 <p><strong>Status:</strong> ${atividade.status}</p>
-                <p><strong>Local:</strong> ${atividade.local}</p>
+                <p><strong>Local:</strong> ${escaparHTML(atividade.local)}</p>
+                <p><strong>Endereço:</strong> ${escaparHTML(atividade.endereco || "Não informado")}</p>
+                <p><strong>Bairro/Cidade:</strong> ${escaparHTML([atividade.bairro, atividade.cidade].filter(Boolean).join(" - ") || "Não informado")}</p>
+                <p><strong>Mapa:</strong> ${linkMapa ? `<a href="${escaparHTML(linkMapa)}" target="_blank" rel="noopener">Abrir localização</a>` : "Não informado"}</p>
                 <p><strong>Data:</strong> ${formatarData(atividade.data)}</p>
                 <p><strong>Horário:</strong> ${formatarHorario(atividade.horario)}</p>
                 <p><strong>Vagas:</strong> ${totalJogadores}/${atividade.limite_vagas}</p>
-                <p><strong>Descrição:</strong> ${atividade.descricao || "Sem descrição."}</p>
-                <p><strong>Requisitos:</strong> ${atividade.requisitos || "Nenhum requisito informado."}</p>
+                <p><strong>Nível:</strong> ${escaparHTML(atividade.nivel || "Livre")}</p>
+                <p><strong>Visibilidade:</strong> ${escaparHTML(atividade.visibilidade || "Pública")}</p>
+                <p><strong>Presenças confirmadas:</strong> ${presencasConfirmadas}/${confirmados.length}${presencasPendentes ? ` • ${presencasPendentes} pendente(s)` : ""}</p>
+                <p><strong>Descrição:</strong> ${escaparHTML(atividade.descricao || "Sem descrição.")}</p>
+                <p><strong>Requisitos:</strong> ${escaparHTML(atividade.requisitos || "Nenhum requisito informado.")}</p>
             </div>
 
             <div class="detail-box">
                 <h3>Ações</h3>
 
-                <button class="btn-primary full" onclick="participarPeloFeed('${atividade.id}')">
-                    Participar
-                </button>
+                ${botaoParticipacaoDetalhes}
 
                 ${
                   souOrganizador && atividade.status === "Aberta"
                     ? `
+                        <button class="btn-secondary full" onclick="abrirModalEditarAtividade('${atividade.id}')">
+                            Editar atividade
+                        </button>
+
                         <button class="btn-acao full" onclick="encerrarAtividade('${atividade.id}')">
                             Encerrar atividade
                         </button>
@@ -1068,6 +1592,8 @@ function renderizarDetalhesAtividade(atividade, participantes) {
         </div>
 
         ${renderizarBlocoChatAtividade(atividade, usuarioPodeVerChat)}
+
+        ${renderizarControlePresencas(confirmados, atividade, souOrganizador)}
 
         <div class="detail-section">
             <h3>Participantes confirmados</h3>
@@ -1088,6 +1614,99 @@ function renderizarDetalhesAtividade(atividade, participantes) {
   }
 }
 
+function renderizarControlePresencas(confirmados, atividade, souOrganizador) {
+  if (!souOrganizador || atividade.status !== "Encerrada") {
+    return "";
+  }
+
+  if (!confirmados || confirmados.length === 0) {
+    return `
+      <div class="detail-section">
+        <h3>Confirmação de presença</h3>
+        <div class="empty-state">Nenhum participante para confirmar presença.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="detail-section attendance-section">
+      <div class="chat-header">
+        <div>
+          <h3>Confirmação de presença</h3>
+          <p>Marque quem realmente compareceu. Somente presentes podem ser avaliados.</p>
+        </div>
+
+        <button class="btn-primary" onclick="salvarPresencasAtividade('${atividade.id}')">
+          Salvar presenças
+        </button>
+      </div>
+
+      <div class="attendance-list">
+        ${confirmados
+          .map((participante) => {
+            const usuario = participante.usuarios || {};
+            const nome = usuario.apelido || usuario.nome || "Usuário";
+            const compareceu = participante.compareceu === true;
+            const naoCompareceu = participante.compareceu === false;
+
+            return `
+              <div class="attendance-item">
+                <div>
+                  <strong>${escaparHTML(nome)}</strong>
+                  <span>${escaparHTML(usuario.email || "")}</span>
+                </div>
+
+                <select data-inscricao-id="${participante.id}" class="attendance-select">
+                  <option value="" ${!compareceu && !naoCompareceu ? "selected" : ""}>Pendente</option>
+                  <option value="true" ${compareceu ? "selected" : ""}>Compareceu</option>
+                  <option value="false" ${naoCompareceu ? "selected" : ""}>Não compareceu</option>
+                </select>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+async function salvarPresencasAtividade(atividadeId) {
+  const selects = document.querySelectorAll('.attendance-select[data-inscricao-id]');
+  const presencas = Array.from(selects)
+    .filter((select) => select.value !== "")
+    .map((select) => ({
+      inscricao_id: select.dataset.inscricaoId,
+      compareceu: select.value === "true",
+    }));
+
+  if (presencas.length === 0) {
+    mostrarMensagem("Marque pelo menos uma presença antes de salvar.", "warning");
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/atividades/${atividadeId}/presencas`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ presencas }),
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    mostrarMensagem(dados.erro || "Erro ao salvar presenças.", "warning");
+    return;
+  }
+
+  mostrarMensagem(dados.mensagem || "Presenças salvas com sucesso.", "success");
+
+  await listarInscricoes(false);
+  await listarAtividades();
+  await abrirDetalhesAtividade(atividadeId);
+}
+
 function renderizarListaParticipantes(participantes, atividade) {
   if (!participantes || participantes.length === 0) {
     return `
@@ -1100,33 +1719,54 @@ function renderizarListaParticipantes(participantes, atividade) {
   return participantes
     .map((participante) => {
       const usuario = participante.usuarios;
-
       const nome = usuario ? usuario.apelido || usuario.nome : "Usuário";
-
       const inicial = pegarInicial(nome);
-
       const ehOrganizador = participante.status === "Organizador";
 
       const usuarioAtualEhOrganizador =
-        usuarioLogadoCache &&
-        atividade.organizador_id === usuarioLogadoCache.id;
+        usuarioLogadoCache && atividade.organizador_id === usuarioLogadoCache.id;
 
-      const usuarioAtualEhParticipanteConfirmado =
-        usuarioLogadoCache &&
-        participantesDetalhesAtual.some((p) => {
-          return (
-            p.usuario_id === usuarioLogadoCache.id && p.status === "Confirmado"
-          );
-        });
+      const inscricaoUsuarioAtual = usuarioLogadoCache
+        ? participantesDetalhesAtual.find((p) => {
+            return p.usuario_id === usuarioLogadoCache.id && p.status === "Confirmado";
+          })
+        : null;
+
+      const usuarioAtualPresente =
+        usuarioAtualEhOrganizador ||
+        !inscricaoUsuarioAtual ||
+        !atividade.status ||
+        atividade.status !== "Encerrada" ||
+        inscricaoUsuarioAtual.compareceu === true ||
+        typeof inscricaoUsuarioAtual.compareceu === "undefined";
+
+      const participantePresente =
+        ehOrganizador ||
+        atividade.status !== "Encerrada" ||
+        participante.compareceu === true ||
+        typeof participante.compareceu === "undefined";
 
       const usuarioPodeAvaliar =
-        usuarioAtualEhOrganizador || usuarioAtualEhParticipanteConfirmado;
+        usuarioAtualEhOrganizador || Boolean(inscricaoUsuarioAtual && usuarioAtualPresente);
 
       const podeAvaliar =
         atividade.status === "Encerrada" &&
         usuarioLogadoCache &&
         usuarioPodeAvaliar &&
+        participantePresente &&
         participante.usuario_id !== usuarioLogadoCache.id;
+
+      let presencaBadge = "";
+
+      if (atividade.status === "Encerrada" && !ehOrganizador) {
+        if (participante.compareceu === true) {
+          presencaBadge = '<span class="presence-badge presence-ok">Presença confirmada</span>';
+        } else if (participante.compareceu === false) {
+          presencaBadge = '<span class="presence-badge presence-no">Não compareceu</span>';
+        } else {
+          presencaBadge = '<span class="presence-badge presence-pending">Presença pendente</span>';
+        }
+      }
 
       return `
       <div class="participant-card">
@@ -1135,11 +1775,12 @@ function renderizarListaParticipantes(participantes, atividade) {
 
           <div>
             <strong>
-              ${nome}
+              ${escaparHTML(nome)}
               ${ehOrganizador ? '<span class="role-badge">Organizador</span>' : ""}
             </strong>
 
-            <span>${usuario ? usuario.email : ""}</span>
+            <span>${usuario ? escaparHTML(usuario.email || "") : ""}</span>
+            ${presencaBadge}
           </div>
         </div>
 
@@ -1358,6 +1999,44 @@ function abrirModalCriarAtividade() {
     return;
   }
 
+  atividadeEmEdicaoId = null;
+  limparFormularioAtividade();
+  configurarModalAtividade("criar");
+
+  const modal = document.getElementById("modalCriarAtividade");
+
+  if (modal) {
+    modal.classList.remove("hidden");
+  }
+}
+
+function abrirModalEditarAtividade(atividadeId) {
+  if (!usuarioLogadoCache) {
+    alert("Você precisa estar logado para editar uma atividade.");
+    return;
+  }
+
+  const atividade = atividadesCache.find((item) => item.id === atividadeId);
+
+  if (!atividade) {
+    alert("Atividade não encontrada para edição.");
+    return;
+  }
+
+  if (atividade.organizador_id !== usuarioLogadoCache.id) {
+    alert("Somente o organizador pode editar esta atividade.");
+    return;
+  }
+
+  if (atividade.status !== "Aberta") {
+    alert("Somente atividades abertas podem ser editadas.");
+    return;
+  }
+
+  atividadeEmEdicaoId = atividadeId;
+  preencherFormularioAtividade(atividade);
+  configurarModalAtividade("editar");
+
   const modal = document.getElementById("modalCriarAtividade");
 
   if (modal) {
@@ -1371,6 +2050,8 @@ function fecharModalCriarAtividade() {
   if (modal) {
     modal.classList.add("hidden");
   }
+
+  atividadeEmEdicaoId = null;
 }
 
 function abrirModalAuth(tipo = "login") {
@@ -1754,6 +2435,7 @@ function renderizarPerfilUsuario(perfil) {
   const atividadesOrganizadas = perfil.atividades_organizadas || [];
   const atividadesParticipadas = perfil.atividades_participadas || [];
   const avaliacoes = perfil.avaliacoes || [];
+  const selos = perfil.selos || [];
 
   conteudo.innerHTML = `
     <div class="public-profile-header">
@@ -1765,6 +2447,10 @@ function renderizarPerfilUsuario(perfil) {
         <h2>${escaparHTML(nomePublico)}</h2>
         <p>Membro da comunidade MatchUp</p>
       </div>
+    </div>
+
+    <div class="reputation-badges">
+      ${renderizarSelosReputacao(selos)}
     </div>
 
     <div class="profile-stats-grid">
@@ -1804,6 +2490,18 @@ function renderizarPerfilUsuario(perfil) {
       ${renderizarAtividadesParticipadasPerfil(atividadesParticipadas)}
     </div>
   `;
+}
+
+function renderizarSelosReputacao(selos) {
+  if (!selos || selos.length === 0) {
+    return `<span class="reputation-badge neutral">Sem selos ainda</span>`;
+  }
+
+  return selos
+    .map((selo) => {
+      return `<span class="reputation-badge">${escaparHTML(selo.icone || "⭐")} ${escaparHTML(selo.titulo || "Selo")}</span>`;
+    })
+    .join("");
 }
 
 function renderizarComentariosPerfil(avaliacoes) {
@@ -1907,6 +2605,272 @@ function renderizarAtividadesParticipadasPerfil(participacoes) {
   `;
 }
 
+
+/* =========================
+   MELHORIAS: PERFIL, RECOMENDAÇÕES E PRESENÇAS
+   ========================= */
+
+async function carregarRecomendacoes() {
+  const card = document.getElementById("recomendacoesCard");
+  const area = document.getElementById("listaRecomendacoes");
+
+  if (!card || !area) return;
+
+  if (!usuarioLogadoCache) {
+    renderizarRecomendacoes(null);
+    return;
+  }
+
+  card.classList.remove("hidden");
+  area.innerHTML = `<div class="empty-state">Carregando recomendações...</div>`;
+
+  try {
+    const resposta = await fetch(`${API_URL}/atividades/recomendadas`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      area.innerHTML = `<div class="empty-state">${escaparHTML(dados.erro || "Erro ao carregar recomendações.")}</div>`;
+      return;
+    }
+
+    renderizarRecomendacoes(dados);
+  } catch (erro) {
+    console.error("Erro ao carregar recomendações:", erro);
+    area.innerHTML = `<div class="empty-state">Erro ao carregar recomendações.</div>`;
+  }
+}
+
+function renderizarRecomendacoes(dados) {
+  const card = document.getElementById("recomendacoesCard");
+  const area = document.getElementById("listaRecomendacoes");
+
+  if (!card || !area) return;
+
+  if (!dados || !usuarioLogadoCache) {
+    card.classList.add("hidden");
+    return;
+  }
+
+  const atividades = dados.atividades || [];
+
+  if (atividades.length === 0) {
+    area.innerHTML = `
+      <div class="empty-state small-empty">
+        Nenhuma recomendação disponível agora. Atualize seus interesses no perfil ou explore o feed.
+      </div>
+    `;
+    return;
+  }
+
+  area.innerHTML = atividades
+    .map((atividade) => {
+      const linkMapa = obterLinkMapaAtividade(atividade);
+      return `
+        <div class="recommendation-card">
+          <div>
+            <strong>${escaparHTML(atividade.titulo)}</strong>
+            <span>${escaparHTML(atividade.categoria || "-")} • ${formatarData(atividade.data)} às ${formatarHorario(atividade.horario)}</span>
+            <p>📍 ${escaparHTML(atividade.local || "-")}${atividade.cidade ? ` • ${escaparHTML(atividade.cidade)}` : ""}</p>
+          </div>
+
+          <div class="recommendation-actions">
+            ${linkMapa ? `<a class="btn-secondary as-link" href="${escaparHTML(linkMapa)}" target="_blank" rel="noopener">Mapa</a>` : ""}
+            <button class="btn-primary" onclick="abrirDetalhesAtividade('${atividade.id}')">Ver</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function abrirModalMeuPerfil() {
+  if (!usuarioLogadoCache) {
+    mostrarMensagem("Faça login para editar seu perfil.", "warning");
+    abrirModalAuth("login");
+    return;
+  }
+
+  const modal = document.getElementById("modalMeuPerfil");
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+  renderizarCheckboxesInteresses("meuPerfilInteresses", []);
+
+  try {
+    const resposta = await fetch(`${API_URL}/meu-perfil`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const perfil = await resposta.json();
+
+    if (!resposta.ok) {
+      mostrarMensagem(perfil.erro || "Erro ao carregar perfil.", "warning");
+      return;
+    }
+
+    ultimoPerfilCarregado = perfil;
+    preencherModalMeuPerfil(perfil);
+  } catch (erro) {
+    console.error("Erro ao abrir perfil:", erro);
+    mostrarMensagem("Erro ao carregar perfil.", "warning");
+  }
+}
+
+function preencherModalMeuPerfil(perfil) {
+  definirValorCampo("meuPerfilNome", perfil.nome);
+  definirValorCampo("meuPerfilApelido", perfil.apelido);
+  definirValorCampo("meuPerfilEmail", perfil.email);
+  definirValorCampo("meuPerfilDataNascimento", perfil.data_nascimento);
+  definirValorCampo("meuPerfilFotoUrl", perfil.foto_perfil);
+  definirValorCampo("meuPerfilSenhaAtual", "");
+  definirValorCampo("meuPerfilNovaSenha", "");
+  definirValorCampo("meuPerfilConfirmarSenha", "");
+
+  renderizarCheckboxesInteresses("meuPerfilInteresses", perfil.interesses || []);
+
+  const preview = document.getElementById("meuPerfilFotoPreview");
+  const nomePublico = perfil.apelido || perfil.nome || "Usuário";
+
+  if (preview) {
+    preview.innerHTML = perfil.foto_perfil
+      ? `<img src="${escaparHTML(perfil.foto_perfil)}" alt="Foto de perfil">`
+      : `<span>${pegarInicial(nomePublico)}</span>`;
+  }
+}
+
+function fecharModalMeuPerfil() {
+  const modal = document.getElementById("modalMeuPerfil");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function salvarMeuPerfil() {
+  if (!usuarioLogadoCache) {
+    mostrarMensagem("Faça login para editar seu perfil.", "warning");
+    return;
+  }
+
+  const nome = obterValorCampo("meuPerfilNome");
+  const apelido = obterValorCampo("meuPerfilApelido");
+  const email = obterValorCampo("meuPerfilEmail");
+  const data_nascimento = obterValorCampo("meuPerfilDataNascimento") || null;
+  const foto_perfil = obterValorCampo("meuPerfilFotoUrl") || null;
+  const senha_atual = obterValorCampo("meuPerfilSenhaAtual");
+  const senha = obterValorCampo("meuPerfilNovaSenha");
+  const confirmar_senha = obterValorCampo("meuPerfilConfirmarSenha");
+  const interesses = obterInteressesSelecionados("meuPerfilInteresses");
+
+  if (!nome || !email) {
+    mostrarMensagem("Nome e e-mail são obrigatórios.", "warning");
+    return;
+  }
+
+  if (!emailValido(email)) {
+    mostrarMensagem("Informe um e-mail válido.", "warning");
+    return;
+  }
+
+  if (senha && senha.length < 8) {
+    mostrarMensagem("A nova senha deve ter no mínimo 8 caracteres.", "warning");
+    return;
+  }
+
+  if (senha && senha !== confirmar_senha) {
+    mostrarMensagem("A confirmação da nova senha não confere.", "warning");
+    return;
+  }
+
+  const corpo = {
+    nome,
+    apelido,
+    email,
+    data_nascimento,
+    foto_perfil,
+    interesses,
+  };
+
+  if (senha_atual) corpo.senha_atual = senha_atual;
+  if (senha) {
+    corpo.senha = senha;
+    corpo.confirmar_senha = confirmar_senha;
+  }
+
+  const resposta = await fetch(`${API_URL}/meu-perfil`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(corpo),
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    mostrarMensagem(dados.erro || "Erro ao salvar perfil.", "warning");
+    return;
+  }
+
+  const arquivo = document.getElementById("meuPerfilFotoArquivo")
+    ? document.getElementById("meuPerfilFotoArquivo").files[0]
+    : null;
+
+  if (arquivo) {
+    const formData = new FormData();
+    formData.append("foto", arquivo);
+
+    const respostaFoto = await fetch(`${API_URL}/meu-perfil/foto`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    const dadosFoto = await respostaFoto.json();
+
+    if (!respostaFoto.ok) {
+      mostrarMensagem(dadosFoto.erro || "Perfil salvo, mas a foto não foi enviada.", "warning");
+    }
+  }
+
+  mostrarMensagem(dados.mensagem || "Perfil salvo com sucesso.", "success");
+
+  await verificarSessao();
+  await listarUsuarios();
+  await carregarRecomendacoes();
+
+  fecharModalMeuPerfil();
+}
+
+async function excluirMinhaConta() {
+  if (!usuarioLogadoCache) return;
+
+  if (!confirm("Tem certeza que deseja excluir sua conta? Essa ação não pode ser desfeita.")) {
+    return;
+  }
+
+  const resposta = await fetch(`${API_URL}/meu-perfil`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    mostrarMensagem(dados.erro || "Erro ao excluir conta.", "warning");
+    return;
+  }
+
+  mostrarMensagem(dados.mensagem || "Conta excluída com sucesso.", "success");
+  fecharModalMeuPerfil();
+
+  await verificarSessao();
+  await listarAtividades();
+  await listarInscricoes(false);
+}
 
 /* =========================
    MELHORIAS: TOASTS, MINHAS ATIVIDADES E NOTIFICAÇÕES
@@ -2021,6 +2985,12 @@ function renderizarAtividadesSimples(atividades, tipo = "atividade") {
                 <span class="status-badge status-${atividade.status}">
                   ${statusInscricao}
                 </span>
+
+                ${tipo === "atividade" && atividade.status === "Aberta" ? `
+                  <button class="btn-secondary" onclick="abrirModalEditarAtividade('${atividade.id}')">
+                    Editar
+                  </button>
+                ` : ""}
 
                 <button class="btn-secondary" onclick="abrirDetalhesAtividade('${atividade.id}')">
                   Ver detalhes
@@ -2262,6 +3232,7 @@ document.addEventListener("keydown", function (evento) {
   fecharModalAvaliacao();
   fecharModalDenuncia();
   fecharModalPerfilUsuario();
+  fecharModalMeuPerfil();
 });
 
 document.addEventListener("click", function (evento) {
@@ -2273,6 +3244,9 @@ document.addEventListener("click", function (evento) {
 });
 
 window.onload = async function () {
+  renderizarCheckboxesInteresses("authInteresses", []);
+  renderizarCheckboxesInteresses("meuPerfilInteresses", []);
+
   await verificarSessao();
   await listarUsuarios();
   await listarAtividades();

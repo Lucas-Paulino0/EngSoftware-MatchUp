@@ -5,6 +5,8 @@ from database import supabase
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
+import re
+import base64
 
 
 load_dotenv()
@@ -30,6 +32,131 @@ def usuario_logado():
     return session.get("usuario")
 
 
+def texto_limpo(valor):
+    if valor is None:
+        return None
+
+    if isinstance(valor, str):
+        valor = valor.strip()
+        return valor if valor else None
+
+    return valor
+
+
+def email_valido(email):
+    if not email:
+        return False
+
+    return re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email) is not None
+
+
+def data_nascimento_valida(data_nascimento):
+    if not data_nascimento:
+        return True
+
+    try:
+        data_obj = datetime.strptime(data_nascimento, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+
+    hoje = datetime.now().date()
+    idade_minima = hoje.replace(year=hoje.year - 13)
+
+    return data_obj <= idade_minima
+
+
+def limpar_interesses(interesses):
+    if interesses is None:
+        return []
+
+    if isinstance(interesses, str):
+        interesses = [item.strip() for item in interesses.split(",")]
+
+    if not isinstance(interesses, list):
+        return []
+
+    interesses_limpos = []
+
+    for interesse in interesses:
+        interesse = texto_limpo(interesse)
+
+        if interesse and interesse not in interesses_limpos:
+            interesses_limpos.append(interesse[:40])
+
+    return interesses_limpos[:12]
+
+
+def resposta_segura_sem_senha(usuario):
+    if not usuario:
+        return usuario
+
+    usuario = dict(usuario)
+    usuario.pop("senha", None)
+    return usuario
+
+
+def atualizar_sessao_usuario(usuario):
+    usuario_sem_senha = resposta_segura_sem_senha(usuario)
+
+    session["usuario"] = {
+        "id": usuario_sem_senha.get("id"),
+        "nome": usuario_sem_senha.get("nome"),
+        "email": usuario_sem_senha.get("email"),
+        "apelido": usuario_sem_senha.get("apelido")
+    }
+
+
+def executar_insert_com_fallback(tabela, dados, campos_opcionais=None):
+    campos_opcionais = campos_opcionais or []
+
+    try:
+        return supabase.table(tabela).insert(dados).execute()
+    except Exception:
+        dados_basicos = {
+            chave: valor for chave, valor in dados.items()
+            if chave not in campos_opcionais
+        }
+        return supabase.table(tabela).insert(dados_basicos).execute()
+
+
+def executar_update_com_fallback(tabela, dados, campo_filtro, valor_filtro, campos_opcionais=None):
+    campos_opcionais = campos_opcionais or []
+
+    try:
+        return supabase.table(tabela).update(dados).eq(campo_filtro, valor_filtro).execute()
+    except Exception:
+        dados_basicos = {
+            chave: valor for chave, valor in dados.items()
+            if chave not in campos_opcionais
+        }
+
+        if not dados_basicos:
+            raise
+
+        return supabase.table(tabela).update(dados_basicos).eq(campo_filtro, valor_filtro).execute()
+
+
+def montar_link_mapa(atividade):
+    link_mapa = atividade.get("link_mapa")
+
+    if link_mapa:
+        return link_mapa
+
+    partes = [
+        atividade.get("endereco"),
+        atividade.get("local"),
+        atividade.get("bairro"),
+        atividade.get("cidade")
+    ]
+
+    termo = ", ".join([parte for parte in partes if parte])
+
+    if not termo:
+        return None
+
+    return "https://www.google.com/maps/search/?api=1&query=" + termo.replace(" ", "+")
+
+
 @app.route("/sessao", methods=["GET"])
 def verificar_sessao():
     usuario = usuario_logado()
@@ -50,18 +177,29 @@ def verificar_sessao():
 def cadastrar_usuario():
     dados = request.get_json()
 
-    nome = dados.get("nome")
-    email = dados.get("email")
+    nome = texto_limpo(dados.get("nome"))
+    email = texto_limpo(dados.get("email"))
     senha = dados.get("senha")
-    data_nascimento = dados.get("data_nascimento")
-    apelido = dados.get("apelido")
-    foto_perfil = dados.get("foto_perfil")
+    confirmar_senha = dados.get("confirmar_senha")
+    data_nascimento = texto_limpo(dados.get("data_nascimento"))
+    apelido = texto_limpo(dados.get("apelido"))
+    foto_perfil = texto_limpo(dados.get("foto_perfil"))
+    interesses = limpar_interesses(dados.get("interesses"))
 
     if not nome or not email or not senha:
         return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
 
+    if not email_valido(email):
+        return jsonify({"erro": "Informe um e-mail válido."}), 400
+
+    if confirmar_senha is not None and senha != confirmar_senha:
+        return jsonify({"erro": "A confirmação de senha não confere."}), 400
+
     if len(senha) < 8:
         return jsonify({"erro": "A senha deve ter no mínimo 8 caracteres."}), 400
+
+    if not data_nascimento_valida(data_nascimento):
+        return jsonify({"erro": "A data de nascimento é inválida ou indica idade menor que 13 anos."}), 400
 
     usuario_existente = supabase.table("usuarios").select("*").eq("email", email).execute()
 
@@ -76,14 +214,13 @@ def cadastrar_usuario():
         "senha": senha_hash,
         "data_nascimento": data_nascimento if data_nascimento else None,
         "apelido": apelido,
-        "foto_perfil": foto_perfil
+        "foto_perfil": foto_perfil,
+        "interesses": interesses
     }
 
-    resposta = supabase.table("usuarios").insert(novo_usuario).execute()
+    resposta = executar_insert_com_fallback("usuarios", novo_usuario, ["interesses"])
 
-    usuario_criado = resposta.data[0]
-
-    usuario_criado.pop("senha", None)
+    usuario_criado = resposta_segura_sem_senha(resposta.data[0])
 
     return jsonify({
         "mensagem": "Usuário cadastrado com sucesso.",
@@ -128,6 +265,9 @@ def alterar_usuario(email):
     if "email" in dados:
         novo_email = dados.get("email")
         senha_atual = dados.get("senha_atual")
+
+        if not email_valido(novo_email):
+            return jsonify({"erro": "Informe um novo e-mail válido."}), 400
 
         if not senha_atual:
             return jsonify({"erro": "Para alterar o e-mail, informe a senha atual."}), 400
@@ -213,12 +353,7 @@ def login():
 
     session.permanent = True
 
-    session["usuario"] = {
-        "id": usuario["id"],
-        "nome": usuario["nome"],
-        "email": usuario["email"],
-        "apelido": usuario.get("apelido")
-    }
+    atualizar_sessao_usuario(usuario)
 
     return jsonify({
         "mensagem": "Login realizado com sucesso.",
@@ -263,14 +398,20 @@ def cadastrar_atividade():
 
     dados = request.get_json()
 
-    titulo = dados.get("titulo")
-    categoria = dados.get("categoria")
-    data_atividade = dados.get("data")
-    horario = dados.get("horario")
-    local = dados.get("local")
+    titulo = texto_limpo(dados.get("titulo"))
+    categoria = texto_limpo(dados.get("categoria"))
+    data_atividade = texto_limpo(dados.get("data"))
+    horario = texto_limpo(dados.get("horario"))
+    local = texto_limpo(dados.get("local"))
     limite_vagas = dados.get("limite_vagas")
-    descricao = dados.get("descricao")
-    requisitos = dados.get("requisitos")
+    descricao = texto_limpo(dados.get("descricao"))
+    requisitos = texto_limpo(dados.get("requisitos"))
+    endereco = texto_limpo(dados.get("endereco"))
+    cidade = texto_limpo(dados.get("cidade"))
+    bairro = texto_limpo(dados.get("bairro"))
+    link_mapa = texto_limpo(dados.get("link_mapa"))
+    nivel = texto_limpo(dados.get("nivel"))
+    visibilidade = texto_limpo(dados.get("visibilidade")) or "Pública"
 
     if not titulo or not categoria or not data_atividade or not horario or not local or not limite_vagas:
         return jsonify({
@@ -299,11 +440,21 @@ def cadastrar_atividade():
         "limite_vagas": limite_vagas,
         "descricao": descricao,
         "requisitos": requisitos,
+        "endereco": endereco,
+        "cidade": cidade,
+        "bairro": bairro,
+        "link_mapa": link_mapa,
+        "nivel": nivel,
+        "visibilidade": visibilidade,
         "status": "Aberta",
         "organizador_id": usuario["id"]
     }
 
-    resposta = supabase.table("atividades").insert(nova_atividade).execute()
+    resposta = executar_insert_com_fallback(
+        "atividades",
+        nova_atividade,
+        ["endereco", "cidade", "bairro", "link_mapa", "nivel", "visibilidade"]
+    )
 
     return jsonify({
         "mensagem": "Atividade cadastrada com sucesso.",
@@ -399,12 +550,21 @@ def alterar_atividade(atividade_id):
         "local",
         "limite_vagas",
         "descricao",
-        "requisitos"
+        "requisitos",
+        "endereco",
+        "cidade",
+        "bairro",
+        "link_mapa",
+        "nivel",
+        "visibilidade"
     ]
 
     for campo in campos_permitidos:
         if campo in dados:
-            dados_atualizados[campo] = dados.get(campo)
+            valor = dados.get(campo)
+            if campo != "limite_vagas":
+                valor = texto_limpo(valor)
+            dados_atualizados[campo] = valor
 
     if "limite_vagas" in dados_atualizados:
         try:
@@ -438,7 +598,13 @@ def alterar_atividade(atividade_id):
     if not dados_atualizados:
         return jsonify({"erro": "Nenhum dado enviado para alteração."}), 400
 
-    resposta = supabase.table("atividades").update(dados_atualizados).eq("id", atividade_id).execute()
+    resposta = executar_update_com_fallback(
+        "atividades",
+        dados_atualizados,
+        "id",
+        atividade_id,
+        ["endereco", "cidade", "bairro", "link_mapa", "nivel", "visibilidade"]
+    )
 
     return jsonify({
         "mensagem": "Atividade alterada com sucesso.",
@@ -610,6 +776,12 @@ def cadastrar_inscricao():
         "mensagem": mensagem
     }).execute()
 
+    supabase.table("notificacoes").insert({
+        "usuario_id": atividade["organizador_id"],
+        "titulo": "Nova inscrição recebida",
+        "mensagem": f"{usuario['nome']} entrou na atividade '{atividade['titulo']}' com status: {status}."
+    }).execute()
+
     return jsonify({
         "mensagem": mensagem,
         "inscricao": resposta.data[0]
@@ -704,7 +876,7 @@ def cancelar_inscricao(inscricao_id):
     
 def usuario_participou_atividade(usuario_id, atividade_id):
     atividade_resposta = supabase.table("atividades").select(
-        "id, organizador_id"
+        "id, organizador_id, status"
     ).eq("id", atividade_id).execute()
 
     if not atividade_resposta.data:
@@ -712,11 +884,11 @@ def usuario_participou_atividade(usuario_id, atividade_id):
 
     atividade = atividade_resposta.data[0]
 
-    # O organizador também é considerado participante da atividade
+    # O organizador também é considerado participante da atividade.
     if atividade["organizador_id"] == usuario_id:
         return True
 
-    inscricao = supabase.table("inscricoes").select("*").eq(
+    inscricao_resposta = supabase.table("inscricoes").select("*").eq(
         "usuario_id", usuario_id
     ).eq(
         "atividade_id", atividade_id
@@ -724,7 +896,18 @@ def usuario_participou_atividade(usuario_id, atividade_id):
         "status", "Confirmado"
     ).execute()
 
-    return bool(inscricao.data)
+    if not inscricao_resposta.data:
+        return False
+
+    inscricao = inscricao_resposta.data[0]
+
+    # Depois que a atividade é encerrada, a avaliação passa a depender da
+    # confirmação de presença feita pelo organizador. Se a coluna ainda não
+    # existir no Supabase, mantemos compatibilidade com a regra antiga.
+    if atividade.get("status") == "Encerrada" and "compareceu" in inscricao:
+        return inscricao.get("compareceu") is True
+
+    return True
 
 
 def avaliacao_dentro_do_prazo(avaliacao):
@@ -1320,14 +1503,344 @@ def consultar_perfil_publico(usuario_id):
         "criado_em", desc=True
     ).execute()
 
+    selos = []
+
+    if media_avaliacoes is not None and media_avaliacoes >= 8.5 and len(avaliacoes) >= 3:
+        selos.append({"titulo": "Perfil bem avaliado", "icone": "⭐"})
+
+    if len(atividades_organizadas.data) >= 3:
+        selos.append({"titulo": "Organizador frequente", "icone": "🏅"})
+
+    if len(atividades_participadas.data) >= 3:
+        selos.append({"titulo": "Participante ativo", "icone": "✅"})
+
+    if media_avaliacoes is not None and media_avaliacoes >= 9:
+        selos.append({"titulo": "Alta reputação", "icone": "🌟"})
+
     return jsonify({
         "usuario": usuario,
         "media_avaliacoes": media_avaliacoes,
         "total_avaliacoes": len(avaliacoes),
+        "selos": selos,
         "avaliacoes": avaliacoes,
         "atividades_organizadas": atividades_organizadas.data,
         "atividades_participadas": atividades_participadas.data
     }), 200
+
+
+@app.route("/meu-perfil", methods=["GET"])
+def consultar_meu_perfil():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("usuarios").select("*").eq("id", usuario["id"]).execute()
+
+    if not resposta.data:
+        return jsonify({"erro": "Usuário não encontrado."}), 404
+
+    return jsonify(resposta_segura_sem_senha(resposta.data[0])), 200
+
+
+@app.route("/meu-perfil", methods=["PUT"])
+def atualizar_meu_perfil():
+    usuario_sessao, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    dados = request.get_json() or {}
+
+    usuario_resposta = supabase.table("usuarios").select("*").eq("id", usuario_sessao["id"]).execute()
+
+    if not usuario_resposta.data:
+        return jsonify({"erro": "Usuário não encontrado."}), 404
+
+    usuario = usuario_resposta.data[0]
+    dados_atualizados = {}
+
+    if "nome" in dados:
+        nome = texto_limpo(dados.get("nome"))
+        if not nome:
+            return jsonify({"erro": "O nome não pode ficar vazio."}), 400
+        dados_atualizados["nome"] = nome
+
+    if "apelido" in dados:
+        dados_atualizados["apelido"] = texto_limpo(dados.get("apelido"))
+
+    if "data_nascimento" in dados:
+        data_nascimento = texto_limpo(dados.get("data_nascimento"))
+        if not data_nascimento_valida(data_nascimento):
+            return jsonify({"erro": "Data de nascimento inválida ou idade menor que 13 anos."}), 400
+        dados_atualizados["data_nascimento"] = data_nascimento
+
+    if "foto_perfil" in dados:
+        dados_atualizados["foto_perfil"] = texto_limpo(dados.get("foto_perfil"))
+
+    if "interesses" in dados:
+        dados_atualizados["interesses"] = limpar_interesses(dados.get("interesses"))
+
+    if "email" in dados:
+        novo_email = texto_limpo(dados.get("email"))
+        senha_atual = dados.get("senha_atual")
+
+        if not email_valido(novo_email):
+            return jsonify({"erro": "Informe um e-mail válido."}), 400
+
+        if novo_email != usuario.get("email"):
+            if not senha_atual:
+                return jsonify({"erro": "Para alterar o e-mail, informe a senha atual."}), 400
+
+            if not check_password_hash(usuario["senha"], senha_atual):
+                return jsonify({"erro": "Senha atual incorreta."}), 401
+
+            email_em_uso = supabase.table("usuarios").select("id").eq("email", novo_email).execute()
+
+            if email_em_uso.data and email_em_uso.data[0]["id"] != usuario["id"]:
+                return jsonify({"erro": "Este e-mail já está em uso."}), 400
+
+            dados_atualizados["email"] = novo_email
+
+    if "senha" in dados and dados.get("senha"):
+        senha_atual = dados.get("senha_atual")
+        nova_senha = dados.get("senha")
+        confirmar_senha = dados.get("confirmar_senha")
+
+        if not senha_atual:
+            return jsonify({"erro": "Para alterar a senha, informe a senha atual."}), 400
+
+        if not check_password_hash(usuario["senha"], senha_atual):
+            return jsonify({"erro": "Senha atual incorreta."}), 401
+
+        if len(nova_senha) < 8:
+            return jsonify({"erro": "A nova senha deve ter no mínimo 8 caracteres."}), 400
+
+        if confirmar_senha is not None and nova_senha != confirmar_senha:
+            return jsonify({"erro": "A confirmação da nova senha não confere."}), 400
+
+        dados_atualizados["senha"] = generate_password_hash(nova_senha)
+
+    if not dados_atualizados:
+        return jsonify({"erro": "Nenhum dado enviado para atualização."}), 400
+
+    resposta = executar_update_com_fallback(
+        "usuarios",
+        dados_atualizados,
+        "id",
+        usuario["id"],
+        ["interesses"]
+    )
+
+    usuario_atualizado = resposta_segura_sem_senha(resposta.data[0])
+    atualizar_sessao_usuario(usuario_atualizado)
+
+    return jsonify({
+        "mensagem": "Perfil atualizado com sucesso.",
+        "usuario": usuario_atualizado
+    }), 200
+
+
+@app.route("/meu-perfil/foto", methods=["POST"])
+def enviar_foto_meu_perfil():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    arquivo = request.files.get("foto")
+
+    if not arquivo:
+        return jsonify({"erro": "Envie um arquivo de imagem."}), 400
+
+    if arquivo.mimetype not in ["image/jpeg", "image/png", "image/webp", "image/gif"]:
+        return jsonify({"erro": "A foto deve ser JPG, PNG, WEBP ou GIF."}), 400
+
+    conteudo = arquivo.read()
+
+    if len(conteudo) > 1024 * 1024:
+        return jsonify({"erro": "A imagem deve ter no máximo 1 MB."}), 400
+
+    foto_base64 = base64.b64encode(conteudo).decode("utf-8")
+    foto_perfil = f"data:{arquivo.mimetype};base64,{foto_base64}"
+
+    resposta = supabase.table("usuarios").update({
+        "foto_perfil": foto_perfil
+    }).eq("id", usuario["id"]).execute()
+
+    usuario_atualizado = resposta_segura_sem_senha(resposta.data[0])
+    atualizar_sessao_usuario(usuario_atualizado)
+
+    return jsonify({
+        "mensagem": "Foto atualizada com sucesso.",
+        "foto_perfil": foto_perfil,
+        "usuario": usuario_atualizado
+    }), 200
+
+
+@app.route("/meu-perfil", methods=["DELETE"])
+def excluir_meu_perfil():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    usuario_existente = supabase.table("usuarios").select("*").eq("id", usuario["id"]).execute()
+
+    if not usuario_existente.data:
+        return jsonify({"erro": "Usuário não encontrado."}), 404
+
+    atividades_abertas = supabase.table("atividades").select("id").eq(
+        "organizador_id", usuario["id"]
+    ).eq("status", "Aberta").execute()
+
+    if atividades_abertas.data:
+        return jsonify({
+            "erro": "Você possui atividades abertas. Cancele ou encerre essas atividades antes de excluir a conta."
+        }), 400
+
+    supabase.table("usuarios").delete().eq("id", usuario["id"]).execute()
+    session.clear()
+
+    return jsonify({"mensagem": "Conta excluída com sucesso."}), 200
+
+
+@app.route("/atividades/recomendadas", methods=["GET"])
+def listar_atividades_recomendadas():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    usuario_resposta = supabase.table("usuarios").select("*").eq("id", usuario["id"]).execute()
+    interesses = []
+
+    if usuario_resposta.data:
+        interesses = limpar_interesses(usuario_resposta.data[0].get("interesses"))
+
+    inscricoes = supabase.table("inscricoes").select(
+        "atividade_id, status, atividades!inscricoes_atividade_id_fkey(categoria)"
+    ).eq("usuario_id", usuario["id"]).execute()
+
+    categorias = set(interesses)
+    atividades_ja_relacionadas = set()
+
+    for inscricao in inscricoes.data:
+        atividades_ja_relacionadas.add(inscricao.get("atividade_id"))
+        atividade_rel = inscricao.get("atividades") or {}
+        categoria = atividade_rel.get("categoria")
+        if categoria:
+            categorias.add(categoria)
+
+    organizadas = supabase.table("atividades").select("id, categoria").eq(
+        "organizador_id", usuario["id"]
+    ).execute()
+
+    for atividade in organizadas.data:
+        atividades_ja_relacionadas.add(atividade.get("id"))
+        if atividade.get("categoria"):
+            categorias.add(atividade.get("categoria"))
+
+    consulta = supabase.table("atividades").select(
+        "*, usuarios!atividades_organizador_id_fkey(nome, email, apelido)"
+    ).eq("status", "Aberta")
+
+    resposta = consulta.order("data", desc=False).limit(50).execute()
+
+    recomendadas = []
+    outras = []
+
+    for atividade in resposta.data:
+        if atividade.get("id") in atividades_ja_relacionadas:
+            continue
+
+        if atividade.get("organizador_id") == usuario["id"]:
+            continue
+
+        atividade["link_mapa_calculado"] = montar_link_mapa(atividade)
+
+        if atividade.get("categoria") in categorias:
+            recomendadas.append(atividade)
+        else:
+            outras.append(atividade)
+
+    # Se o usuário ainda não tem histórico ou interesses, mostramos atividades abertas próximas.
+    if not recomendadas:
+        recomendadas = outras[:6]
+    else:
+        recomendadas = recomendadas[:6]
+
+    return jsonify({
+        "categorias_base": sorted(list(categorias)),
+        "atividades": recomendadas
+    }), 200
+
+
+@app.route("/atividades/<atividade_id>/presencas", methods=["PUT"])
+def confirmar_presencas_atividade(atividade_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividade_resposta = supabase.table("atividades").select("*").eq("id", atividade_id).execute()
+
+    if not atividade_resposta.data:
+        return jsonify({"erro": "Atividade não encontrada."}), 404
+
+    atividade = atividade_resposta.data[0]
+
+    if atividade["organizador_id"] != usuario["id"]:
+        return jsonify({"erro": "Somente o organizador pode confirmar presenças."}), 403
+
+    if atividade["status"] != "Encerrada":
+        return jsonify({"erro": "A presença só pode ser confirmada depois do encerramento da atividade."}), 400
+
+    dados = request.get_json() or {}
+    presencas = dados.get("presencas", [])
+
+    if not isinstance(presencas, list):
+        return jsonify({"erro": "Formato inválido de presenças."}), 400
+
+    atualizadas = []
+
+    for item in presencas:
+        inscricao_id = item.get("inscricao_id")
+        compareceu = item.get("compareceu")
+
+        if inscricao_id is None or compareceu is None:
+            continue
+
+        inscricao_resposta = supabase.table("inscricoes").select("*").eq("id", inscricao_id).eq(
+            "atividade_id", atividade_id
+        ).eq("status", "Confirmado").execute()
+
+        if not inscricao_resposta.data:
+            continue
+
+        try:
+            resposta = supabase.table("inscricoes").update({
+                "compareceu": bool(compareceu)
+            }).eq("id", inscricao_id).execute()
+        except Exception:
+            return jsonify({
+                "erro": "A coluna compareceu ainda não existe na tabela inscricoes. Execute o arquivo supabase_migracao_melhorias.sql no Supabase."
+            }), 400
+
+        if resposta.data:
+            atualizadas.append(resposta.data[0])
+
+            supabase.table("notificacoes").insert({
+                "usuario_id": resposta.data[0]["usuario_id"],
+                "titulo": "Presença atualizada",
+                "mensagem": f"Sua presença na atividade '{atividade['titulo']}' foi marcada como {'confirmada' if bool(compareceu) else 'não compareceu'}."
+            }).execute()
+
+    return jsonify({
+        "mensagem": "Presenças atualizadas com sucesso.",
+        "presencas": atualizadas
+    }), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True)
