@@ -153,6 +153,7 @@ async function login() {
   await verificarSessao();
   await listarAtividades();
   await listarInscricoes(false);
+  await listarNotificacoes(false);
 }
 
 async function logout() {
@@ -168,6 +169,7 @@ async function logout() {
   await verificarSessao();
   await listarAtividades();
   await listarInscricoes(false);
+  await listarNotificacoes(false);
 }
 
 async function listarUsuarios() {
@@ -1905,9 +1907,375 @@ function renderizarAtividadesParticipadasPerfil(participacoes) {
   `;
 }
 
+
+/* =========================
+   MELHORIAS: TOASTS, MINHAS ATIVIDADES E NOTIFICAÇÕES
+   ========================= */
+
+function mostrarMensagem(mensagem, tipo = "info") {
+  const container = document.getElementById("toastContainer");
+
+  if (!container) {
+    console.log(mensagem);
+    return;
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast-message toast-${tipo}`;
+  toast.textContent = mensagem || "Operação concluída.";
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("show");
+  }, 50);
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+
+    setTimeout(() => {
+      toast.remove();
+    }, 250);
+  }, 3500);
+}
+
+window.alert = function (mensagem) {
+  mostrarMensagem(mensagem, "info");
+};
+
+function obterAtividadeDaInscricao(inscricao) {
+  return inscricao && inscricao.atividades ? inscricao.atividades : null;
+}
+
+function renderizarResumoMinhasAtividades(dados) {
+  const totalOrganizadas = dados.organizadas ? dados.organizadas.length : 0;
+  const totalParticipando = dados.participando ? dados.participando.length : 0;
+  const totalEspera = dados.lista_espera ? dados.lista_espera.length : 0;
+  const totalAvaliar = dados.encerradas_para_avaliar
+    ? dados.encerradas_para_avaliar.length
+    : 0;
+
+  return `
+    <div class="dashboard-grid">
+      <div class="dashboard-card">
+        <span>Organizadas</span>
+        <strong>${totalOrganizadas}</strong>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Participando</span>
+        <strong>${totalParticipando}</strong>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Lista de espera</span>
+        <strong>${totalEspera}</strong>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Para avaliar</span>
+        <strong>${totalAvaliar}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function renderizarAtividadesSimples(atividades, tipo = "atividade") {
+  if (!atividades || atividades.length === 0) {
+    return `
+      <div class="empty-state small-empty">
+        Nenhum registro encontrado.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="my-activity-list">
+      ${atividades
+        .map((item) => {
+          const atividade = tipo === "inscricao" ? obterAtividadeDaInscricao(item) : item;
+
+          if (!atividade) {
+            return "";
+          }
+
+          const statusInscricao =
+            tipo === "inscricao"
+              ? item.status === "Lista de Espera"
+                ? `Lista de espera #${item.posicao_espera}`
+                : item.status
+              : atividade.status;
+
+          return `
+            <div class="my-activity-item">
+              <div>
+                <strong>${escaparHTML(atividade.titulo)}</strong>
+                <span>
+                  ${escaparHTML(atividade.categoria || "-")} •
+                  ${formatarData(atividade.data)} às ${formatarHorario(atividade.horario)}
+                </span>
+                <p>📍 ${escaparHTML(atividade.local || "-")}</p>
+              </div>
+
+              <div class="my-activity-actions">
+                <span class="status-badge status-${atividade.status}">
+                  ${statusInscricao}
+                </span>
+
+                <button class="btn-secondary" onclick="abrirDetalhesAtividade('${atividade.id}')">
+                  Ver detalhes
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderizarMinhasAtividades(dados) {
+  return `
+    ${renderizarResumoMinhasAtividades(dados)}
+
+    <div class="my-sections">
+      <section class="my-section">
+        <h3>📌 Atividades que organizei</h3>
+        ${renderizarAtividadesSimples(dados.organizadas, "atividade")}
+      </section>
+
+      <section class="my-section">
+        <h3>✅ Atividades em que estou participando</h3>
+        ${renderizarAtividadesSimples(dados.participando, "inscricao")}
+      </section>
+
+      <section class="my-section">
+        <h3>⏳ Lista de espera</h3>
+        ${renderizarAtividadesSimples(dados.lista_espera, "inscricao")}
+      </section>
+
+      <section class="my-section">
+        <h3>⭐ Encerradas para avaliar</h3>
+        ${renderizarAtividadesSimples(dados.encerradas_para_avaliar, "inscricao")}
+      </section>
+    </div>
+  `;
+}
+
+async function abrirModalMinhasAtividades() {
+  if (!usuarioLogadoCache) {
+    mostrarMensagem("Faça login para ver suas atividades.", "warning");
+    abrirModalAuth("login");
+    return;
+  }
+
+  const modal = document.getElementById("modalMinhasAtividades");
+  const conteudo = document.getElementById("modalMinhasAtividadesConteudo");
+
+  if (!modal || !conteudo) return;
+
+  conteudo.innerHTML = "Carregando suas atividades...";
+  modal.classList.remove("hidden");
+
+  try {
+    const resposta = await fetch(`${API_URL}/minhas-atividades`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      conteudo.innerHTML = `<div class="empty-state">${dados.erro || "Erro ao carregar suas atividades."}</div>`;
+      return;
+    }
+
+    conteudo.innerHTML = renderizarMinhasAtividades(dados);
+  } catch (erro) {
+    console.error("Erro ao carregar minhas atividades:", erro);
+    conteudo.innerHTML = `<div class="empty-state">Erro ao carregar suas atividades.</div>`;
+  }
+}
+
+function fecharModalMinhasAtividades() {
+  const modal = document.getElementById("modalMinhasAtividades");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function listarNotificacoes(renderizarModal = false) {
+  const badge = document.getElementById("badgeNotificacoes");
+  const conteudo = document.getElementById("modalNotificacoesConteudo");
+
+  if (!usuarioLogadoCache) {
+    if (badge) {
+      badge.textContent = "0";
+      badge.classList.add("hidden");
+    }
+
+    if (renderizarModal && conteudo) {
+      conteudo.innerHTML = `<div class="empty-state">Faça login para ver suas notificações.</div>`;
+    }
+
+    return;
+  }
+
+  try {
+    const resposta = await fetch(`${API_URL}/notificacoes`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      if (renderizarModal && conteudo) {
+        conteudo.innerHTML = `<div class="empty-state">${dados.erro || "Erro ao carregar notificações."}</div>`;
+      }
+      return;
+    }
+
+    if (badge) {
+      badge.textContent = dados.nao_lidas;
+
+      if (dados.nao_lidas > 0) {
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }
+
+    if (renderizarModal && conteudo) {
+      conteudo.innerHTML = renderizarNotificacoes(dados.notificacoes);
+    }
+  } catch (erro) {
+    console.error("Erro ao carregar notificações:", erro);
+
+    if (renderizarModal && conteudo) {
+      conteudo.innerHTML = `<div class="empty-state">Erro ao carregar notificações.</div>`;
+    }
+  }
+}
+
+function renderizarNotificacoes(notificacoes) {
+  if (!notificacoes || notificacoes.length === 0) {
+    return `
+      <div class="empty-state">
+        Nenhuma notificação por enquanto.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="notification-list">
+      ${notificacoes
+        .map((notificacao) => {
+          const classe = notificacao.lida
+            ? "notification-item read"
+            : "notification-item unread";
+
+          return `
+            <div class="${classe}">
+              <div>
+                <strong>${escaparHTML(notificacao.titulo)}</strong>
+                <p>${escaparHTML(notificacao.mensagem)}</p>
+                <span>${formatarDataHora(notificacao.criado_em)}</span>
+              </div>
+
+              ${
+                notificacao.lida
+                  ? `<span class="read-label">Lida</span>`
+                  : `<button class="btn-secondary" onclick="marcarNotificacaoComoLida('${notificacao.id}')">Marcar como lida</button>`
+              }
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+async function abrirModalNotificacoes() {
+  if (!usuarioLogadoCache) {
+    mostrarMensagem("Faça login para ver suas notificações.", "warning");
+    abrirModalAuth("login");
+    return;
+  }
+
+  const modal = document.getElementById("modalNotificacoes");
+  const conteudo = document.getElementById("modalNotificacoesConteudo");
+
+  if (!modal || !conteudo) return;
+
+  conteudo.innerHTML = "Carregando notificações...";
+  modal.classList.remove("hidden");
+
+  await listarNotificacoes(true);
+}
+
+function fecharModalNotificacoes() {
+  const modal = document.getElementById("modalNotificacoes");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function marcarNotificacaoComoLida(notificacaoId) {
+  const resposta = await fetch(`${API_URL}/notificacoes/${notificacaoId}/lida`, {
+    method: "PUT",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    mostrarMensagem(dados.erro || "Erro ao marcar notificação.", "warning");
+    return;
+  }
+
+  mostrarMensagem(dados.mensagem, "success");
+  await listarNotificacoes(true);
+}
+
+async function marcarTodasNotificacoesComoLidas() {
+  const resposta = await fetch(`${API_URL}/notificacoes/marcar-todas-lidas`, {
+    method: "PUT",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    mostrarMensagem(dados.erro || "Erro ao atualizar notificações.", "warning");
+    return;
+  }
+
+  mostrarMensagem(dados.mensagem, "success");
+  await listarNotificacoes(true);
+}
+
+document.addEventListener("keydown", function (evento) {
+  if (evento.key !== "Escape") return;
+
+  fecharModalMinhasAtividades();
+  fecharModalNotificacoes();
+  fecharModalAuth();
+  fecharModalCriarAtividade();
+  fecharDetalhesAtividade();
+  fecharModalAvaliacao();
+  fecharModalDenuncia();
+  fecharModalPerfilUsuario();
+});
+
+document.addEventListener("click", function (evento) {
+  if (!evento.target.classList || !evento.target.classList.contains("modal-overlay")) {
+    return;
+  }
+
+  evento.target.classList.add("hidden");
+});
+
 window.onload = async function () {
   await verificarSessao();
   await listarUsuarios();
   await listarAtividades();
   await listarInscricoes(false);
+  await listarNotificacoes(false);
 };

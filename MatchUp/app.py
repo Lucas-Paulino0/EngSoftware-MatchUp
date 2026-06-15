@@ -1181,6 +1181,109 @@ def enviar_mensagem_chat(atividade_id):
         "chat": resposta.data[0]
     }), 201
 
+
+@app.route("/minhas-atividades", methods=["GET"])
+def consultar_minhas_atividades():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    atividades_organizadas = supabase.table("atividades").select(
+        "*, usuarios!atividades_organizador_id_fkey(nome, email, apelido)"
+    ).eq("organizador_id", usuario["id"]).order("data", desc=True).execute()
+
+    minhas_inscricoes = supabase.table("inscricoes").select(
+        "*, atividades!inscricoes_atividade_id_fkey(id, titulo, categoria, data, horario, local, limite_vagas, descricao, requisitos, status, organizador_id)"
+    ).eq("usuario_id", usuario["id"]).order("criado_em", desc=True).execute()
+
+    participando = []
+    lista_espera = []
+    encerradas_para_avaliar = []
+
+    for inscricao in minhas_inscricoes.data:
+        atividade = inscricao.get("atividades")
+
+        if inscricao.get("status") == "Confirmado":
+            participando.append(inscricao)
+
+            if atividade and atividade.get("status") == "Encerrada":
+                encerradas_para_avaliar.append(inscricao)
+
+        elif inscricao.get("status") == "Lista de Espera":
+            lista_espera.append(inscricao)
+
+    organizadas_encerradas = [
+        atividade for atividade in atividades_organizadas.data
+        if atividade.get("status") == "Encerrada"
+    ]
+
+    return jsonify({
+        "organizadas": atividades_organizadas.data,
+        "participando": participando,
+        "lista_espera": lista_espera,
+        "encerradas_para_avaliar": encerradas_para_avaliar,
+        "organizadas_encerradas": organizadas_encerradas
+    }), 200
+
+
+@app.route("/notificacoes", methods=["GET"])
+def listar_notificacoes():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    resposta = supabase.table("notificacoes").select("*").eq(
+        "usuario_id", usuario["id"]
+    ).order("criado_em", desc=True).limit(30).execute()
+
+    nao_lidas = [notificacao for notificacao in resposta.data if not notificacao.get("lida")]
+
+    return jsonify({
+        "notificacoes": resposta.data,
+        "nao_lidas": len(nao_lidas)
+    }), 200
+
+
+@app.route("/notificacoes/marcar-todas-lidas", methods=["PUT"])
+def marcar_todas_notificacoes_como_lidas():
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    supabase.table("notificacoes").update({
+        "lida": True
+    }).eq("usuario_id", usuario["id"]).execute()
+
+    return jsonify({
+        "mensagem": "Todas as notificações foram marcadas como lidas."
+    }), 200
+
+
+@app.route("/notificacoes/<notificacao_id>/lida", methods=["PUT"])
+def marcar_notificacao_como_lida(notificacao_id):
+    usuario, erro = login_obrigatorio()
+
+    if erro:
+        return erro
+
+    notificacao_resposta = supabase.table("notificacoes").select("*").eq(
+        "id", notificacao_id
+    ).eq("usuario_id", usuario["id"]).execute()
+
+    if not notificacao_resposta.data:
+        return jsonify({"erro": "Notificação não encontrada."}), 404
+
+    supabase.table("notificacoes").update({
+        "lida": True
+    }).eq("id", notificacao_id).execute()
+
+    return jsonify({
+        "mensagem": "Notificação marcada como lida."
+    }), 200
+
 @app.route("/usuarios/<usuario_id>/perfil", methods=["GET"])
 def consultar_perfil_publico(usuario_id):
     usuario_resposta = supabase.table("usuarios").select(

@@ -26,6 +26,12 @@
           <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()"
             >➕ Criar atividade</a
           >
+          <a href="javascript:void(0)" onclick="abrirModalMinhasAtividades()"
+            >📌 Minhas atividades</a
+          >
+          <a href="javascript:void(0)" onclick="abrirModalNotificacoes()">
+            🔔 Notificações <span id="badgeNotificacoes" class="notification-badge hidden">0</span>
+          </a>
         </nav>
 
         <div class="mini-card">
@@ -452,6 +458,53 @@
         </div>
       </div>
     </div>
+
+
+    <div id="modalMinhasAtividades" class="modal-overlay hidden">
+      <div class="modal-card modal-profile">
+        <div class="modal-header">
+          <div>
+            <h2>Minhas atividades</h2>
+            <p>Acompanhe atividades que você organizou, participa ou está aguardando.</p>
+          </div>
+
+          <button class="modal-close" onclick="fecharModalMinhasAtividades()">
+            ×
+          </button>
+        </div>
+
+        <div id="modalMinhasAtividadesConteudo" class="modal-content">
+          Carregando suas atividades...
+        </div>
+      </div>
+    </div>
+
+    <div id="modalNotificacoes" class="modal-overlay hidden">
+      <div class="modal-card modal-profile">
+        <div class="modal-header">
+          <div>
+            <h2>Notificações</h2>
+            <p>Acompanhe avisos sobre inscrições, lista de espera e atividades.</p>
+          </div>
+
+          <button class="modal-close" onclick="fecharModalNotificacoes()">
+            ×
+          </button>
+        </div>
+
+        <div class="modal-toolbar">
+          <button class="btn-secondary" onclick="marcarTodasNotificacoesComoLidas()">
+            Marcar todas como lidas
+          </button>
+        </div>
+
+        <div id="modalNotificacoesConteudo" class="modal-content">
+          Carregando notificações...
+        </div>
+      </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <div id="modalPerfilUsuario" class="modal-overlay hidden">
       <div class="modal-card modal-profile">
