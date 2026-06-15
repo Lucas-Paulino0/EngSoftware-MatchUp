@@ -17,7 +17,7 @@
           <div class="brand-icon">M</div>
           <div>
             <h1>MatchUp</h1>
-            <span>Encontre sua próxima atividade</span>
+            <span>Atividades, grupos e eventos em comunidade</span>
           </div>
         </div>
 
@@ -28,6 +28,9 @@
           >
           <a href="javascript:void(0)" onclick="abrirModalMinhasAtividades()"
             >📌 Minhas atividades</a
+          >
+          <a href="javascript:void(0)" onclick="abrirModalMeuPerfil()"
+            >👤 Meu perfil</a
           >
           <a href="javascript:void(0)" onclick="abrirModalNotificacoes()">
             🔔 Notificações <span id="badgeNotificacoes" class="notification-badge hidden">0</span>
@@ -61,13 +64,39 @@
           </div>
         </header>
 
+        <!-- APRESENTAÇÃO -->
+        <section class="hero-card">
+          <div class="hero-content">
+            <span class="eyebrow">Comunidade MatchUp</span>
+            <h2>Encontre pessoas para jogar, treinar, estudar ou organizar eventos.</h2>
+            <p>
+              Crie atividades com vagas limitadas, acompanhe inscrições, converse com os participantes e avalie a experiência depois do evento.
+            </p>
+
+            <div class="hero-actions">
+              <button class="btn-primary" onclick="document.getElementById('feed').scrollIntoView({ behavior: 'smooth' })">
+                Explorar atividades
+              </button>
+
+              <button class="btn-secondary" onclick="abrirModalCriarAtividade()">
+                Criar atividade
+              </button>
+            </div>
+          </div>
+
+          <div class="hero-steps">
+            <div><strong>1</strong><span>Crie ou encontre uma atividade</span></div>
+            <div><strong>2</strong><span>Entre, confirme presença ou vá para a lista de espera</span></div>
+            <div><strong>3</strong><span>Use o chat e avalie depois do encerramento</span></div>
+          </div>
+        </section>
+
         <!-- LOGIN / CADASTRO -->
         <section id="authCard" class="auth-banner">
           <div>
             <h2>Entre no MatchUp</h2>
             <p>
-              Faça login para criar atividades, participar de eventos, avaliar e
-              denunciar usuários.
+              Faça login para criar atividades, participar de eventos, receber notificações e acompanhar sua reputação.
             </p>
           </div>
 
@@ -93,6 +122,23 @@
                 comunidade pelo feed.
               </p>
             </div>
+          </div>
+        </section>
+
+        <section id="recomendacoesCard" class="recommendations-section hidden">
+          <div class="section-title compact-title">
+            <div>
+              <h2>Recomendadas para você</h2>
+              <p>Atividades sugeridas com base nos seus interesses e histórico.</p>
+            </div>
+
+            <button class="btn-secondary" onclick="carregarRecomendacoes()">
+              Atualizar recomendações
+            </button>
+          </div>
+
+          <div id="listaRecomendacoes" class="recommendations-list">
+            <div class="empty-state">Carregando recomendações...</div>
           </div>
         </section>
 
@@ -122,6 +168,49 @@
 
             <button class="btn-secondary" onclick="listarAtividades()">
               Atualizar feed
+            </button>
+          </div>
+
+          <div class="feed-filters" aria-label="Filtros do feed">
+            <div>
+              <label for="filtroCategoria">Categoria</label>
+              <select id="filtroCategoria" onchange="filtrarFeed()">
+                <option value="">Todas as categorias</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="filtroData">Data</label>
+              <input id="filtroData" type="date" onchange="filtrarFeed()" />
+            </div>
+
+            <div>
+              <label for="filtroStatus">Status</label>
+              <select id="filtroStatus" onchange="filtrarFeed()">
+                <option value="">Todos</option>
+                <option value="Aberta">Abertas</option>
+                <option value="Encerrada">Encerradas</option>
+                <option value="Cancelada">Canceladas</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="filtroOrdenacao">Ordenar por</label>
+              <select id="filtroOrdenacao" onchange="filtrarFeed()">
+                <option value="recentes">Mais recentes</option>
+                <option value="data_proxima">Data mais próxima</option>
+                <option value="data_distante">Data mais distante</option>
+                <option value="mais_vagas">Mais vagas</option>
+              </select>
+            </div>
+
+            <label class="check-filter">
+              <input id="filtroVagas" type="checkbox" onchange="filtrarFeed()" />
+              <span>Somente com vagas</span>
+            </label>
+
+            <button class="btn-secondary" onclick="limparFiltrosFeed()">
+              Limpar filtros
             </button>
           </div>
 
@@ -232,6 +321,15 @@
               </div>
 
               <div>
+                <label>Confirmar senha</label>
+                <input
+                  id="authConfirmarSenha"
+                  type="password"
+                  placeholder="Digite a senha novamente"
+                />
+              </div>
+
+              <div>
                 <label>Data de nascimento</label>
                 <input id="authDataNascimento" type="date" />
               </div>
@@ -242,8 +340,18 @@
               </div>
 
               <div>
-                <label>Foto de perfil</label>
+                <label>Foto de perfil por URL</label>
                 <input id="authFotoPerfil" placeholder="URL da imagem" />
+              </div>
+
+              <div>
+                <label>Ou envie uma foto</label>
+                <input id="authFotoArquivo" type="file" accept="image/*" />
+              </div>
+
+              <div class="wide">
+                <label>Interesses</label>
+                <div id="authInteresses" class="interest-grid"></div>
               </div>
             </div>
 
@@ -264,8 +372,8 @@
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <h2>Criar nova atividade</h2>
-            <p>Publique uma atividade para a comunidade participar.</p>
+            <h2 id="modalCriarAtividadeTitulo">Criar nova atividade</h2>
+            <p id="modalCriarAtividadeSubtitulo">Publique uma atividade para a comunidade participar.</p>
           </div>
 
           <button class="modal-close" onclick="fecharModalCriarAtividade()">
@@ -282,7 +390,16 @@
 
             <div>
               <label>Categoria</label>
-              <input id="categoriaAtividade" placeholder="Ex: Futebol" />
+              <select id="categoriaAtividade">
+                <option value="">Selecione...</option>
+                <option value="Futebol">Futebol</option>
+                <option value="Vôlei">Vôlei</option>
+                <option value="Corrida">Corrida</option>
+                <option value="Jogos">Jogos</option>
+                <option value="Estudos">Estudos</option>
+                <option value="Evento">Evento</option>
+                <option value="Outro">Outro</option>
+              </select>
             </div>
 
             <div>
@@ -301,8 +418,46 @@
             </div>
 
             <div>
+              <label>Endereço</label>
+              <input id="enderecoAtividade" placeholder="Ex: Av. Principal, 100" />
+            </div>
+
+            <div>
+              <label>Bairro</label>
+              <input id="bairroAtividade" placeholder="Ex: Centro" />
+            </div>
+
+            <div>
+              <label>Cidade</label>
+              <input id="cidadeAtividade" placeholder="Ex: Varginha" />
+            </div>
+
+            <div>
+              <label>Link do Google Maps</label>
+              <input id="linkMapaAtividade" placeholder="Cole o link do mapa, se tiver" />
+            </div>
+
+            <div>
+              <label>Nível</label>
+              <select id="nivelAtividade">
+                <option value="">Livre</option>
+                <option value="Iniciante">Iniciante</option>
+                <option value="Intermediário">Intermediário</option>
+                <option value="Avançado">Avançado</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Visibilidade</label>
+              <select id="visibilidadeAtividade">
+                <option value="Pública">Pública</option>
+                <option value="Privada">Privada</option>
+              </select>
+            </div>
+
+            <div>
               <label>Limite de vagas</label>
-              <input id="limiteVagas" type="number" placeholder="Ex: 10" />
+              <input id="limiteVagas" type="number" min="1" placeholder="Ex: 10" />
             </div>
 
             <div class="wide">
@@ -323,7 +478,7 @@
           </div>
 
           <div class="button-row">
-            <button class="btn-primary" onclick="cadastrarAtividade()">
+            <button id="btnSalvarAtividade" class="btn-primary" onclick="cadastrarAtividade()">
               Publicar atividade
             </button>
 
@@ -500,6 +655,84 @@
 
         <div id="modalNotificacoesConteudo" class="modal-content">
           Carregando notificações...
+        </div>
+      </div>
+    </div>
+
+    <div id="modalMeuPerfil" class="modal-overlay hidden">
+      <div class="modal-card modal-profile">
+        <div class="modal-header">
+          <div>
+            <h2>Meu perfil</h2>
+            <p>Atualize seus dados, interesses, foto e senha.</p>
+          </div>
+
+          <button class="modal-close" onclick="fecharModalMeuPerfil()">×</button>
+        </div>
+
+        <div class="modal-content">
+          <div class="profile-edit-grid">
+            <div class="profile-photo-box">
+              <div id="meuPerfilFotoPreview" class="public-profile-avatar edit-avatar-preview">?</div>
+              <label>Nova foto</label>
+              <input id="meuPerfilFotoArquivo" type="file" accept="image/*" />
+              <small>JPG, PNG, WEBP ou GIF até 1 MB.</small>
+            </div>
+
+            <div class="modal-form">
+              <div class="form-grid two">
+                <div>
+                  <label>Nome completo</label>
+                  <input id="meuPerfilNome" placeholder="Seu nome" />
+                </div>
+
+                <div>
+                  <label>Apelido</label>
+                  <input id="meuPerfilApelido" placeholder="Nome público" />
+                </div>
+
+                <div>
+                  <label>E-mail</label>
+                  <input id="meuPerfilEmail" placeholder="seu@email.com" />
+                </div>
+
+                <div>
+                  <label>Data de nascimento</label>
+                  <input id="meuPerfilDataNascimento" type="date" />
+                </div>
+
+                <div class="wide">
+                  <label>Foto por URL</label>
+                  <input id="meuPerfilFotoUrl" placeholder="URL da imagem" />
+                </div>
+
+                <div class="wide">
+                  <label>Interesses</label>
+                  <div id="meuPerfilInteresses" class="interest-grid"></div>
+                </div>
+
+                <div>
+                  <label>Senha atual</label>
+                  <input id="meuPerfilSenhaAtual" type="password" placeholder="Obrigatória para trocar e-mail/senha" />
+                </div>
+
+                <div>
+                  <label>Nova senha</label>
+                  <input id="meuPerfilNovaSenha" type="password" placeholder="Opcional" />
+                </div>
+
+                <div>
+                  <label>Confirmar nova senha</label>
+                  <input id="meuPerfilConfirmarSenha" type="password" placeholder="Opcional" />
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button class="btn-primary" onclick="salvarMeuPerfil()">Salvar perfil</button>
+                <button class="btn-danger" onclick="excluirMinhaConta()">Excluir conta</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1625,3 +1625,479 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================
+   MELHORIAS: HERO, FILTROS E CARDS DO FEED
+   ========================= */
+
+.hero-card {
+  background: linear-gradient(135deg, #111827, #1d4ed8);
+  color: #ffffff;
+  border-radius: 28px;
+  padding: 28px;
+  margin-bottom: 18px;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18);
+  display: grid;
+  grid-template-columns: 1.35fr 0.9fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.hero-content h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.05;
+}
+
+.hero-content p {
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 1.6;
+  margin: 0 0 18px;
+  max-width: 740px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-steps {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-steps div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.hero-steps strong {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-steps span {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.feed-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+  align-items: end;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.check-filter {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.check-filter input {
+  width: auto;
+}
+
+.check-filter span {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 800;
+}
+
+.activity-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+
+.activity-title-row h3 {
+  margin: 0;
+}
+
+.category-pill,
+.personal-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.category-pill {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.personal-status {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.empty-state-action strong {
+  display: block;
+  color: #111827;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.empty-state-action p {
+  margin: 0 0 14px;
+}
+
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+  .hero-card {
+    grid-template-columns: 1fr;
+  }
+
+  .feed-filters {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-card {
+    padding: 22px;
+  }
+
+  .hero-actions,
+  .hero-actions button {
+    width: 100%;
+  }
+
+  .feed-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-title-row,
+  .post-actions,
+  .badge-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* =========================
+   Melhorias finais: perfil, recomendações, mapa, presença e reputação
+   ========================= */
+
+.logged-user-mini {
+  flex-wrap: wrap;
+}
+
+.logged-avatar-img {
+  overflow: hidden;
+}
+
+.logged-avatar-img img,
+.public-profile-avatar img,
+.edit-avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+
+.mini-profile-btn,
+.mini-logout-btn {
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.mini-profile-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.mini-logout-btn {
+  background: #ef4444;
+  color: white;
+}
+
+.recommendations-section {
+  background: white;
+  border-radius: 24px;
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.compact-title {
+  margin-bottom: 12px;
+}
+
+.recommendations-list {
+  display: grid;
+  gap: 12px;
+}
+
+.recommendation-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.recommendation-card strong,
+.recommendation-card span {
+  display: block;
+}
+
+.recommendation-card span,
+.recommendation-card p {
+  color: #6b7280;
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.recommendation-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.as-link {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
+.interest-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.interest-chip {
+  margin: 0;
+}
+
+.interest-chip input {
+  display: none;
+}
+
+.interest-chip span {
+  display: inline-block;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.interest-chip input:checked + span {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
+.profile-edit-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.profile-photo-box {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 16px;
+  text-align: center;
+}
+
+.profile-photo-box small {
+  display: block;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+.edit-avatar-preview {
+  margin: 0 auto 16px;
+}
+
+.attendance-section {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+}
+
+.attendance-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.attendance-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  background: white;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.attendance-item strong,
+.attendance-item span {
+  display: block;
+}
+
+.attendance-item span {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.attendance-select {
+  max-width: 190px;
+}
+
+.presence-badge,
+.reputation-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.presence-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.presence-no {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.presence-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reputation-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.reputation-badge {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.reputation-badge.neutral {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.meta-item small {
+  display: block;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.meta-item a,
+.detail-box a {
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.meta-item a:hover,
+.detail-box a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .profile-edit-grid,
+  .recommendation-card,
+  .attendance-item {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .recommendation-actions {
+    justify-content: stretch;
+  }
+
+  .recommendation-actions button,
+  .recommendation-actions a,
+  .attendance-select {
+    width: 100%;
+    max-width: none;
+  }
+}
