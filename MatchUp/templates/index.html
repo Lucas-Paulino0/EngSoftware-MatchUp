@@ -1,388 +1,477 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>MatchUp</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
 
-<body>
+  <body>
     <div class="app-shell">
+      <!-- SIDEBAR ESQUERDA -->
+      <aside class="left-sidebar">
+        <div class="brand">
+          <div class="brand-icon">M</div>
+          <div>
+            <h1>MatchUp</h1>
+            <span>Encontre sua próxima atividade</span>
+          </div>
+        </div>
 
-        <!-- SIDEBAR ESQUERDA -->
-        <aside class="left-sidebar">
-            <div class="brand">
-                <div class="brand-icon">M</div>
-                <div>
-                    <h1>MatchUp</h1>
-                    <span>Encontre sua próxima atividade</span>
-                </div>
+        <nav class="nav-menu">
+          <a href="#feed" class="active">🏠 Início</a>
+          <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()"
+            >➕ Criar atividade</a
+          >
+        </nav>
+
+        <div class="mini-card">
+          <h3>Dica</h3>
+          <p>
+            Crie atividades com data futura e convide participantes para formar
+            grupos.
+          </p>
+        </div>
+      </aside>
+
+      <!-- CONTEÚDO CENTRAL -->
+      <main class="main-feed">
+        <!-- TOPO -->
+        <header class="topbar">
+          <div class="search-box">
+            <span>🔎</span>
+            <input
+              id="campoBusca"
+              placeholder="Buscar atividades por título, local ou categoria..."
+              oninput="filtrarFeed()"
+            />
+          </div>
+
+          <div class="session-pill">
+            <span id="areaSessao">Verificando sessão...</span>
+          </div>
+        </header>
+
+        <!-- LOGIN / CADASTRO -->
+        <section id="authCard" class="auth-banner">
+          <div>
+            <h2>Entre no MatchUp</h2>
+            <p>
+              Faça login para criar atividades, participar de eventos, avaliar e
+              denunciar usuários.
+            </p>
+          </div>
+
+          <div class="auth-banner-actions">
+            <button class="btn-primary" onclick="abrirModalAuth('login')">
+              Entrar
+            </button>
+
+            <button class="btn-secondary" onclick="abrirModalAuth('cadastro')">
+              Criar conta
+            </button>
+          </div>
+        </section>
+
+        <section id="welcomeCard" class="welcome-card compact-welcome hidden">
+          <div class="welcome-content">
+            <div class="welcome-avatar">🎯</div>
+
+            <div>
+              <h2 id="welcomeTitle">Bem-vindo ao MatchUp!</h2>
+              <p>
+                Explore atividades, participe de eventos e acompanhe a
+                comunidade pelo feed.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="criar-atividade" class="quick-composer">
+          <div class="quick-composer-left">
+            <div class="quick-avatar">＋</div>
+
+            <button class="quick-input" onclick="abrirModalCriarAtividade()">
+              O que você quer organizar hoje?
+            </button>
+          </div>
+
+          <button class="btn-primary" onclick="abrirModalCriarAtividade()">
+            Criar atividade
+          </button>
+        </section>
+
+        <!-- FEED -->
+        <section id="feed" class="feed-section">
+          <div class="section-title">
+            <div>
+              <h2>Feed de atividades</h2>
+              <p>
+                Atividades disponíveis e eventos publicados pela comunidade.
+              </p>
             </div>
 
-            <nav class="nav-menu">
-                <a href="#feed" class="active">🏠 Início</a>
-                <a href="javascript:void(0)" onclick="abrirModalCriarAtividade()">➕ Criar atividade</a>
-            </nav>
+            <button class="btn-secondary" onclick="listarAtividades()">
+              Atualizar feed
+            </button>
+          </div>
 
-            <div class="mini-card">
-                <h3>Dica</h3>
-                <p>Crie atividades com data futura e convide participantes para formar grupos.</p>
-            </div>
-        </aside>
+          <div id="feedAtividades" class="feed-list">
+            <div class="empty-state">Carregando atividades...</div>
+          </div>
+        </section>
+      </main>
 
-        <!-- CONTEÚDO CENTRAL -->
-        <main class="main-feed">
+      <!-- SIDEBAR DIREITA -->
+      <aside class="right-sidebar">
+        <div class="profile-card">
+          <div class="profile-cover"></div>
+          <div class="profile-avatar">🏃</div>
+          <h3>Comunidade MatchUp</h3>
+          <p>
+            Organize partidas, encontros, jogos e atividades com outras pessoas.
+          </p>
+        </div>
 
-            <!-- TOPO -->
-            <header class="topbar">
-                <div class="search-box">
-                    <span>🔎</span>
-                    <input id="campoBusca" placeholder="Buscar atividades por título, local ou categoria..." oninput="filtrarFeed()">
-                </div>
+        <div class="side-card">
+          <h3>Resumo</h3>
 
-                <div class="session-pill">
-                    <span id="areaSessao">Verificando sessão...</span>
-                </div>
-            </header>
+          <div class="stat-row">
+            <span>Atividades</span>
+            <strong id="statAtividades">0</strong>
+          </div>
 
-            <!-- LOGIN / CADASTRO -->
-            <section id="authCard" class="auth-banner">
-                <div>
-                    <h2>Entre no MatchUp</h2>
-                    <p>Faça login para criar atividades, participar de eventos, avaliar e denunciar usuários.</p>
-                </div>
+          <div class="stat-row">
+            <span>Usuários</span>
+            <strong id="statUsuarios">0</strong>
+          </div>
 
-                <div class="auth-banner-actions">
-                    <button class="btn-primary" onclick="abrirModalAuth('login')">
-                        Entrar
-                    </button>
+          <div class="stat-row">
+            <span>Inscrições</span>
+            <strong id="statInscricoes">0</strong>
+          </div>
+        </div>
 
-                    <button class="btn-secondary" onclick="abrirModalAuth('cadastro')">
-                        Criar conta
-                    </button>
-                </div>
-            </section>
-
-            <section id="welcomeCard" class="welcome-card compact-welcome hidden">
-                <div class="welcome-content">
-                    <div class="welcome-avatar">🎯</div>
-
-                    <div>
-                        <h2 id="welcomeTitle">Bem-vindo ao MatchUp!</h2>
-                        <p>
-                            Explore atividades, participe de eventos e acompanhe a comunidade pelo feed.
-                        </p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="criar-atividade" class="quick-composer">
-                <div class="quick-composer-left">
-                    <div class="quick-avatar">＋</div>
-
-                    <button class="quick-input" onclick="abrirModalCriarAtividade()">
-                        O que você quer organizar hoje?
-                    </button>
-                </div>
-
-                <button class="btn-primary" onclick="abrirModalCriarAtividade()">
-                    Criar atividade
-                </button>
-            </section>
-
-            <!-- FEED -->
-            <section id="feed" class="feed-section">
-                <div class="section-title">
-                    <div>
-                        <h2>Feed de atividades</h2>
-                        <p>Atividades disponíveis e eventos publicados pela comunidade.</p>
-                    </div>
-
-                    <button class="btn-secondary" onclick="listarAtividades()">Atualizar feed</button>
-                </div>
-
-                <div id="feedAtividades" class="feed-list">
-                    <div class="empty-state">
-                        Carregando atividades...
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- SIDEBAR DIREITA -->
-        <aside class="right-sidebar">
-            <div class="profile-card">
-                <div class="profile-cover"></div>
-                <div class="profile-avatar">🏃</div>
-                <h3>Comunidade MatchUp</h3>
-                <p>Organize partidas, encontros, jogos e atividades com outras pessoas.</p>
-            </div>
-
-            <div class="side-card">
-                <h3>Resumo</h3>
-
-                <div class="stat-row">
-                    <span>Atividades</span>
-                    <strong id="statAtividades">0</strong>
-                </div>
-
-                <div class="stat-row">
-                    <span>Usuários</span>
-                    <strong id="statUsuarios">0</strong>
-                </div>
-
-                <div class="stat-row">
-                    <span>Inscrições</span>
-                    <strong id="statInscricoes">0</strong>
-                </div>
-            </div>
-
-            <div class="side-card">
-                <h3>Categorias populares</h3>
-                <div id="categoriasPopulares" class="tag-list">
-                    <span>Futebol</span>
-                    <span>Vôlei</span>
-                    <span>Corrida</span>
-                    <span>Jogos</span>
-                </div>
-            </div>
-        </aside>
+        <div class="side-card">
+          <h3>Categorias populares</h3>
+          <div id="categoriasPopulares" class="tag-list">
+            <span>Futebol</span>
+            <span>Vôlei</span>
+            <span>Corrida</span>
+            <span>Jogos</span>
+          </div>
+        </div>
+      </aside>
     </div>
 
     <div id="modalAuth" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div>
-                    <h2 id="modalAuthTitulo">Entrar no MatchUp</h2>
-                    <p id="modalAuthSubtitulo">Acesse sua conta para participar da comunidade.</p>
-                </div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h2 id="modalAuthTitulo">Entrar no MatchUp</h2>
+            <p id="modalAuthSubtitulo">
+              Acesse sua conta para participar da comunidade.
+            </p>
+          </div>
 
-                <button class="modal-close" onclick="fecharModalAuth()">×</button>
-            </div>
-
-            <div class="modal-content">
-                <div id="boxLogin" class="auth-box">
-                    <h3>Login</h3>
-
-                    <label>E-mail</label>
-                    <input id="authLoginEmail" placeholder="Digite seu e-mail">
-
-                    <label>Senha</label>
-                    <input id="authLoginSenha" type="password" placeholder="Digite sua senha">
-
-                    <div class="button-row">
-                        <button class="btn-primary" onclick="login()">Entrar</button>
-                        <button class="btn-secondary" onclick="mostrarCadastroAuth()">Criar conta</button>
-                    </div>
-                </div>
-
-                <div id="boxCadastro" class="auth-box hidden">
-                    <h3>Criar conta</h3>
-
-                    <div class="form-grid two">
-                        <div>
-                            <label>Nome completo</label>
-                            <input id="authNome" placeholder="Ex: João Silva">
-                        </div>
-
-                        <div>
-                            <label>E-mail</label>
-                            <input id="authEmail" placeholder="Ex: joao@email.com">
-                        </div>
-
-                        <div>
-                            <label>Senha</label>
-                            <input id="authSenha" type="password" placeholder="Mínimo 8 caracteres">
-                        </div>
-
-                        <div>
-                            <label>Data de nascimento</label>
-                            <input id="authDataNascimento" type="date">
-                        </div>
-
-                        <div>
-                            <label>Apelido</label>
-                            <input id="authApelido" placeholder="Nome público">
-                        </div>
-
-                        <div>
-                            <label>Foto de perfil</label>
-                            <input id="authFotoPerfil" placeholder="URL da imagem">
-                        </div>
-                    </div>
-
-                    <div class="button-row">
-                        <button class="btn-primary" onclick="cadastrarUsuario()">Criar usuário</button>
-                        <button class="btn-secondary" onclick="mostrarLoginAuth()">Já tenho conta</button>
-                    </div>
-                </div>
-            </div>
+          <button class="modal-close" onclick="fecharModalAuth()">×</button>
         </div>
+
+        <div class="modal-content">
+          <div id="boxLogin" class="auth-box">
+            <h3>Login</h3>
+
+            <label>E-mail</label>
+            <input id="authLoginEmail" placeholder="Digite seu e-mail" />
+
+            <label>Senha</label>
+            <input
+              id="authLoginSenha"
+              type="password"
+              placeholder="Digite sua senha"
+            />
+
+            <div class="button-row">
+              <button class="btn-primary" onclick="login()">Entrar</button>
+              <button class="btn-secondary" onclick="mostrarCadastroAuth()">
+                Criar conta
+              </button>
+            </div>
+          </div>
+
+          <div id="boxCadastro" class="auth-box hidden">
+            <h3>Criar conta</h3>
+
+            <div class="form-grid two">
+              <div>
+                <label>Nome completo</label>
+                <input id="authNome" placeholder="Ex: João Silva" />
+              </div>
+
+              <div>
+                <label>E-mail</label>
+                <input id="authEmail" placeholder="Ex: joao@email.com" />
+              </div>
+
+              <div>
+                <label>Senha</label>
+                <input
+                  id="authSenha"
+                  type="password"
+                  placeholder="Mínimo 8 caracteres"
+                />
+              </div>
+
+              <div>
+                <label>Data de nascimento</label>
+                <input id="authDataNascimento" type="date" />
+              </div>
+
+              <div>
+                <label>Apelido</label>
+                <input id="authApelido" placeholder="Nome público" />
+              </div>
+
+              <div>
+                <label>Foto de perfil</label>
+                <input id="authFotoPerfil" placeholder="URL da imagem" />
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button class="btn-primary" onclick="cadastrarUsuario()">
+                Criar usuário
+              </button>
+              <button class="btn-secondary" onclick="mostrarLoginAuth()">
+                Já tenho conta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="modalCriarAtividade" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div>
-                    <h2>Criar nova atividade</h2>
-                    <p>Publique uma atividade para a comunidade participar.</p>
-                </div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h2>Criar nova atividade</h2>
+            <p>Publique uma atividade para a comunidade participar.</p>
+          </div>
 
-                <button class="modal-close" onclick="fecharModalCriarAtividade()">×</button>
-            </div>
-
-            <div class="modal-content">
-                <div class="form-grid four">
-                    <div>
-                        <label>Título</label>
-                        <input id="tituloAtividade" placeholder="Ex: Futebol de sábado">
-                    </div>
-
-                    <div>
-                        <label>Categoria</label>
-                        <input id="categoriaAtividade" placeholder="Ex: Futebol">
-                    </div>
-
-                    <div>
-                        <label>Data</label>
-                        <input id="dataAtividade" type="date">
-                    </div>
-
-                    <div>
-                        <label>Horário</label>
-                        <input id="horarioAtividade" type="time">
-                    </div>
-
-                    <div>
-                        <label>Local</label>
-                        <input id="localAtividade" placeholder="Ex: Quadra central">
-                    </div>
-
-                    <div>
-                        <label>Limite de vagas</label>
-                        <input id="limiteVagas" type="number" placeholder="Ex: 10">
-                    </div>
-
-                    <div class="wide">
-                        <label>Descrição</label>
-                        <input id="descricaoAtividade" placeholder="Conte um pouco sobre a atividade...">
-                    </div>
-
-                    <div class="wide">
-                        <label>Requisitos</label>
-                        <input id="requisitosAtividade" placeholder="Ex: levar água, chegar 10 min antes...">
-                    </div>
-                </div>
-
-                <div class="button-row">
-                    <button class="btn-primary" onclick="cadastrarAtividade()">
-                        Publicar atividade
-                    </button>
-
-                    <button class="btn-secondary" onclick="fecharModalCriarAtividade()">
-                        Cancelar
-                    </button>
-                </div>
-            </div>
+          <button class="modal-close" onclick="fecharModalCriarAtividade()">
+            ×
+          </button>
         </div>
+
+        <div class="modal-content">
+          <div class="form-grid four">
+            <div>
+              <label>Título</label>
+              <input id="tituloAtividade" placeholder="Ex: Futebol de sábado" />
+            </div>
+
+            <div>
+              <label>Categoria</label>
+              <input id="categoriaAtividade" placeholder="Ex: Futebol" />
+            </div>
+
+            <div>
+              <label>Data</label>
+              <input id="dataAtividade" type="date" />
+            </div>
+
+            <div>
+              <label>Horário</label>
+              <input id="horarioAtividade" type="time" />
+            </div>
+
+            <div>
+              <label>Local</label>
+              <input id="localAtividade" placeholder="Ex: Quadra central" />
+            </div>
+
+            <div>
+              <label>Limite de vagas</label>
+              <input id="limiteVagas" type="number" placeholder="Ex: 10" />
+            </div>
+
+            <div class="wide">
+              <label>Descrição</label>
+              <input
+                id="descricaoAtividade"
+                placeholder="Conte um pouco sobre a atividade..."
+              />
+            </div>
+
+            <div class="wide">
+              <label>Requisitos</label>
+              <input
+                id="requisitosAtividade"
+                placeholder="Ex: levar água, chegar 10 min antes..."
+              />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button class="btn-primary" onclick="cadastrarAtividade()">
+              Publicar atividade
+            </button>
+
+            <button class="btn-secondary" onclick="fecharModalCriarAtividade()">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="modalDetalhesAtividade" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div>
-                    <h2 id="modalTituloAtividade">Detalhes da atividade</h2>
-                    <p id="modalSubtituloAtividade">Informações da atividade selecionada</p>
-                </div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h2 id="modalTituloAtividade">Detalhes da atividade</h2>
+            <p id="modalSubtituloAtividade">
+              Informações da atividade selecionada
+            </p>
+          </div>
 
-                <button class="modal-close" onclick="fecharDetalhesAtividade()">×</button>
-            </div>
-
-            <div id="modalConteudoAtividade" class="modal-content">
-                Carregando...
-            </div>
+          <button class="modal-close" onclick="fecharDetalhesAtividade()">
+            ×
+          </button>
         </div>
+
+        <div id="modalConteudoAtividade" class="modal-content">
+          Carregando...
+        </div>
+      </div>
     </div>
 
     <div id="modalAvaliacao" class="modal-overlay hidden">
-        <div class="modal-card modal-small">
-            <div class="modal-header">
-                <div>
-                    <h2>Registrar avaliação</h2>
-                    <p id="modalAvaliacaoSubtitulo">Avalie o participante selecionado</p>
-                </div>
+      <div class="modal-card modal-small">
+        <div class="modal-header">
+          <div>
+            <h2>Registrar avaliação</h2>
+            <p id="modalAvaliacaoSubtitulo">
+              Avalie o participante selecionado
+            </p>
+          </div>
 
-                <button class="modal-close" onclick="fecharModalAvaliacao()">×</button>
-            </div>
-
-            <div class="modal-content">
-                <input type="hidden" id="avaliacaoAtividadeId">
-                <input type="hidden" id="avaliacaoAvaliadoId">
-
-                <div class="modal-form">
-                    <label>Nota</label>
-                    <input id="avaliacaoNota" type="number" min="0" max="10" placeholder="Digite uma nota de 0 a 10">
-
-                    <label>Comentário</label>
-                    <textarea id="avaliacaoComentario" rows="5" placeholder="Escreva um elogio ou comentário sobre o participante..."></textarea>
-
-                    <div class="button-row">
-                        <button class="btn-primary" onclick="enviarAvaliacaoModal()">
-                            Enviar avaliação
-                        </button>
-
-                        <button class="btn-secondary" onclick="fecharModalAvaliacao()">
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            </div>
+          <button class="modal-close" onclick="fecharModalAvaliacao()">
+            ×
+          </button>
         </div>
+
+        <div class="modal-content">
+          <input type="hidden" id="avaliacaoAtividadeId" />
+          <input type="hidden" id="avaliacaoAvaliadoId" />
+
+          <div class="modal-form">
+            <label>Nota</label>
+            <input
+              id="avaliacaoNota"
+              type="number"
+              min="0"
+              max="10"
+              placeholder="Digite uma nota de 0 a 10"
+            />
+
+            <label>Comentário</label>
+            <textarea
+              id="avaliacaoComentario"
+              rows="5"
+              placeholder="Escreva um elogio ou comentário sobre o participante..."
+            ></textarea>
+
+            <div class="button-row">
+              <button class="btn-primary" onclick="enviarAvaliacaoModal()">
+                Enviar avaliação
+              </button>
+
+              <button class="btn-secondary" onclick="fecharModalAvaliacao()">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="modalDenuncia" class="modal-overlay hidden">
-        <div class="modal-card modal-small">
-            <div class="modal-header danger-header">
-                <div>
-                    <h2>Registrar denúncia</h2>
-                    <p id="modalDenunciaSubtitulo">Informe o motivo da denúncia</p>
-                </div>
+      <div class="modal-card modal-small">
+        <div class="modal-header danger-header">
+          <div>
+            <h2>Registrar denúncia</h2>
+            <p id="modalDenunciaSubtitulo">Informe o motivo da denúncia</p>
+          </div>
 
-                <button class="modal-close" onclick="fecharModalDenuncia()">×</button>
-            </div>
-
-            <div class="modal-content">
-                <input type="hidden" id="denunciaTipoAlvo">
-                <input type="hidden" id="denunciaAlvoId">
-
-                <div class="modal-form">
-                    <label>Motivo</label>
-                    <select id="denunciaMotivo">
-                        <option value="">Selecione o motivo...</option>
-                        <option value="Comportamento inadequado">Comportamento inadequado</option>
-                        <option value="Linguagem ofensiva">Linguagem ofensiva</option>
-                        <option value="Atividade falsa ou enganosa">Atividade falsa ou enganosa</option>
-                        <option value="Assédio ou intimidação">Assédio ou intimidação</option>
-                        <option value="Outro">Outro</option>
-                    </select>
-
-                    <label>Descrição</label>
-                    <textarea id="denunciaDescricao" rows="5" placeholder="Explique melhor o que aconteceu..."></textarea>
-
-                    <div class="button-row">
-                        <button class="btn-danger" onclick="enviarDenuncia()">
-                            Enviar denúncia
-                        </button>
-
-                        <button class="btn-secondary" onclick="fecharModalDenuncia()">
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            </div>
+          <button class="modal-close" onclick="fecharModalDenuncia()">×</button>
         </div>
+
+        <div class="modal-content">
+          <input type="hidden" id="denunciaTipoAlvo" />
+          <input type="hidden" id="denunciaAlvoId" />
+
+          <div class="modal-form">
+            <label>Motivo</label>
+            <select id="denunciaMotivo">
+              <option value="">Selecione o motivo...</option>
+              <option value="Comportamento inadequado">
+                Comportamento inadequado
+              </option>
+              <option value="Linguagem ofensiva">Linguagem ofensiva</option>
+              <option value="Atividade falsa ou enganosa">
+                Atividade falsa ou enganosa
+              </option>
+              <option value="Assédio ou intimidação">
+                Assédio ou intimidação
+              </option>
+              <option value="Outro">Outro</option>
+            </select>
+
+            <label>Descrição</label>
+            <textarea
+              id="denunciaDescricao"
+              rows="5"
+              placeholder="Explique melhor o que aconteceu..."
+            ></textarea>
+
+            <div class="button-row">
+              <button class="btn-danger" onclick="enviarDenuncia()">
+                Enviar denúncia
+              </button>
+
+              <button class="btn-secondary" onclick="fecharModalDenuncia()">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalPerfilUsuario" class="modal-overlay hidden">
+      <div class="modal-card modal-profile">
+        <div class="modal-header">
+          <div>
+            <h2>Perfil público</h2>
+            <p>Informações do usuário na comunidade MatchUp</p>
+          </div>
+
+          <button class="modal-close" onclick="fecharModalPerfilUsuario()">
+            ×
+          </button>
+        </div>
+
+        <div id="modalPerfilConteudo" class="modal-content">
+          Carregando perfil...
+        </div>
+      </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
+  </body>
 </html>

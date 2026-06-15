@@ -1180,5 +1180,50 @@ def enviar_mensagem_chat(atividade_id):
         "chat": resposta.data[0]
     }), 201
 
+@app.route("/usuarios/<usuario_id>/perfil", methods=["GET"])
+def consultar_perfil_publico(usuario_id):
+    usuario_resposta = supabase.table("usuarios").select(
+        "id, nome, apelido, foto_perfil, criado_em"
+    ).eq("id", usuario_id).execute()
+
+    if not usuario_resposta.data:
+        return jsonify({"erro": "Usuário não encontrado."}), 404
+
+    usuario = usuario_resposta.data[0]
+
+    avaliacoes_resposta = supabase.table("avaliacoes").select(
+        "id, nota, comentario, criado_em, "
+        "usuarios!avaliacoes_avaliador_id_fkey(nome, apelido), "
+        "atividades!avaliacoes_atividade_id_fkey(titulo, data)"
+    ).eq("avaliado_id", usuario_id).order("criado_em", desc=True).execute()
+
+    avaliacoes = avaliacoes_resposta.data
+
+    if avaliacoes:
+        soma_notas = sum([avaliacao["nota"] for avaliacao in avaliacoes])
+        media_avaliacoes = round(soma_notas / len(avaliacoes), 1)
+    else:
+        media_avaliacoes = None
+
+    atividades_organizadas = supabase.table("atividades").select(
+        "id, titulo, categoria, data, horario, local, status"
+    ).eq("organizador_id", usuario_id).order("data", desc=True).execute()
+
+    atividades_participadas = supabase.table("inscricoes").select(
+        "status, criado_em, "
+        "atividades!inscricoes_atividade_id_fkey(id, titulo, categoria, data, horario, local, status)"
+    ).eq("usuario_id", usuario_id).eq("status", "Confirmado").order(
+        "criado_em", desc=True
+    ).execute()
+
+    return jsonify({
+        "usuario": usuario,
+        "media_avaliacoes": media_avaliacoes,
+        "total_avaliacoes": len(avaliacoes),
+        "avaliacoes": avaliacoes,
+        "atividades_organizadas": atividades_organizadas.data,
+        "atividades_participadas": atividades_participadas.data
+    }), 200
+
 if __name__ == "__main__":
     app.run(debug=True)

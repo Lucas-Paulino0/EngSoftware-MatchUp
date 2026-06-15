@@ -449,7 +449,7 @@ function renderizarFeedAtividades(atividades) {
 
     card.innerHTML = `
             <div class="post-header">
-                <div class="organizer">
+                <div class="organizer clickable-user" onclick="abrirPerfilUsuario('${atividade.organizador_id}')">
                     <div class="organizer-avatar">${inicial}</div>
                     <div>
                         <strong>${organizador}</strong>
@@ -1128,7 +1128,7 @@ function renderizarListaParticipantes(participantes, atividade) {
 
       return `
       <div class="participant-card">
-        <div class="participant-info">
+        <div class="participant-info clickable-user" onclick="abrirPerfilUsuario('${participante.usuario_id}')">
           <div class="participant-avatar">${inicial}</div>
 
           <div>
@@ -1679,6 +1679,230 @@ async function enviarAvaliacaoModal() {
   if (typeof listarAvaliacao === "function") {
     await listarAvaliacao();
   }
+}
+
+function escaparHTML(valor) {
+  return String(valor ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function abrirPerfilUsuario(usuarioId) {
+  if (!usuarioId || usuarioId === "undefined") {
+    alert("Usuário não encontrado.");
+    return;
+  }
+
+  const modal = document.getElementById("modalPerfilUsuario");
+  const conteudo = document.getElementById("modalPerfilConteudo");
+
+  conteudo.innerHTML = `
+    <div class="empty-state">
+      Carregando perfil...
+    </div>
+  `;
+
+  modal.classList.remove("hidden");
+
+  const resposta = await fetch(`${API_URL}/usuarios/${usuarioId}/perfil`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    conteudo.innerHTML = `
+      <div class="empty-state">
+        ${dados.erro || "Erro ao carregar perfil."}
+      </div>
+    `;
+    return;
+  }
+
+  renderizarPerfilUsuario(dados);
+}
+
+function fecharModalPerfilUsuario() {
+  const modal = document.getElementById("modalPerfilUsuario");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function renderizarPerfilUsuario(perfil) {
+  const conteudo = document.getElementById("modalPerfilConteudo");
+
+  const usuario = perfil.usuario;
+
+  const nomePublico = usuario.apelido || usuario.nome;
+  const inicial = pegarInicial(nomePublico);
+
+  const fotoPerfil = usuario.foto_perfil
+    ? `<img src="${escaparHTML(usuario.foto_perfil)}" alt="Foto de perfil">`
+    : `<span>${inicial}</span>`;
+
+  const media =
+    perfil.media_avaliacoes !== null ? perfil.media_avaliacoes : "Sem nota";
+
+  const atividadesOrganizadas = perfil.atividades_organizadas || [];
+  const atividadesParticipadas = perfil.atividades_participadas || [];
+  const avaliacoes = perfil.avaliacoes || [];
+
+  conteudo.innerHTML = `
+    <div class="public-profile-header">
+      <div class="public-profile-avatar">
+        ${fotoPerfil}
+      </div>
+
+      <div>
+        <h2>${escaparHTML(nomePublico)}</h2>
+        <p>Membro da comunidade MatchUp</p>
+      </div>
+    </div>
+
+    <div class="profile-stats-grid">
+      <div class="profile-stat-box">
+        <strong>${media}</strong>
+        <span>Média</span>
+      </div>
+
+      <div class="profile-stat-box">
+        <strong>${perfil.total_avaliacoes}</strong>
+        <span>Avaliações</span>
+      </div>
+
+      <div class="profile-stat-box">
+        <strong>${atividadesOrganizadas.length}</strong>
+        <span>Organizadas</span>
+      </div>
+
+      <div class="profile-stat-box">
+        <strong>${atividadesParticipadas.length}</strong>
+        <span>Participações</span>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h3>Comentários recebidos</h3>
+      ${renderizarComentariosPerfil(avaliacoes)}
+    </div>
+
+    <div class="profile-section">
+      <h3>Atividades organizadas</h3>
+      ${renderizarAtividadesOrganizadasPerfil(atividadesOrganizadas)}
+    </div>
+
+    <div class="profile-section">
+      <h3>Atividades participadas</h3>
+      ${renderizarAtividadesParticipadasPerfil(atividadesParticipadas)}
+    </div>
+  `;
+}
+
+function renderizarComentariosPerfil(avaliacoes) {
+  if (!avaliacoes || avaliacoes.length === 0) {
+    return `
+      <div class="empty-state">
+        Este usuário ainda não recebeu avaliações.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="profile-list">
+      ${avaliacoes
+        .map((avaliacao) => {
+          const avaliador = avaliacao.usuarios
+            ? avaliacao.usuarios.apelido || avaliacao.usuarios.nome
+            : "Usuário";
+
+          const atividade = avaliacao.atividades
+            ? avaliacao.atividades.titulo
+            : "Atividade";
+
+          return `
+          <div class="profile-list-item">
+            <div>
+              <strong>Nota ${avaliacao.nota}/10</strong>
+              <span>por ${escaparHTML(avaliador)} em ${escaparHTML(atividade)}</span>
+            </div>
+
+            <p>${escaparHTML(avaliacao.comentario || "Sem comentário.")}</p>
+          </div>
+        `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderizarAtividadesOrganizadasPerfil(atividades) {
+  if (!atividades || atividades.length === 0) {
+    return `
+      <div class="empty-state">
+        Nenhuma atividade organizada ainda.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="profile-list">
+      ${atividades
+        .map((atividade) => {
+          return `
+          <div class="profile-list-item">
+            <div>
+              <strong>${escaparHTML(atividade.titulo)}</strong>
+              <span>${escaparHTML(atividade.categoria)} • ${formatarData(atividade.data)} • ${atividade.status}</span>
+            </div>
+
+            <p>${escaparHTML(atividade.local)}</p>
+          </div>
+        `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderizarAtividadesParticipadasPerfil(participacoes) {
+  if (!participacoes || participacoes.length === 0) {
+    return `
+      <div class="empty-state">
+        Nenhuma participação confirmada ainda.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="profile-list">
+      ${participacoes
+        .map((participacao) => {
+          const atividade = participacao.atividades;
+
+          if (!atividade) {
+            return "";
+          }
+
+          return `
+          <div class="profile-list-item">
+            <div>
+              <strong>${escaparHTML(atividade.titulo)}</strong>
+              <span>${escaparHTML(atividade.categoria)} • ${formatarData(atividade.data)} • ${atividade.status}</span>
+            </div>
+
+            <p>${escaparHTML(atividade.local)}</p>
+          </div>
+        `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 window.onload = async function () {
