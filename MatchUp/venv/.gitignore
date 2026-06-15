@@ -1,0 +1,11 @@
+.env
+MatchUp/.env
+
+__pycache__/
+MatchUp/__pycache__/
+*.pyc
+
+venv/
+.venv/
+MatchUp/venv/
+MatchUp/.venv/
